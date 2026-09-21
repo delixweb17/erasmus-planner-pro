@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as CalendarioRouteImport } from './routes/calendario'
 import { Route as DespesasRouteImport } from './routes/despesas'
 import { Route as PoupancaRouteImport } from './routes/poupanca'
 import { Route as ViagensIndexRouteImport } from './routes/viagens.index'
@@ -18,6 +19,11 @@ import { Route as ViagensTripIdRouteImport } from './routes/viagens.$tripId'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CalendarioRoute = CalendarioRouteImport.update({
+  id: '/calendario',
+  path: '/calendario',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DespesasRoute = DespesasRouteImport.update({
@@ -43,6 +49,7 @@ const ViagensTripIdRoute = ViagensTripIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/calendario': typeof CalendarioRoute
   '/despesas': typeof DespesasRoute
   '/poupanca': typeof PoupancaRoute
   '/viagens/$tripId': typeof ViagensTripIdRoute
@@ -50,6 +57,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/calendario': typeof CalendarioRoute
   '/despesas': typeof DespesasRoute
   '/poupanca': typeof PoupancaRoute
   '/viagens/$tripId': typeof ViagensTripIdRoute
@@ -58,6 +66,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/calendario': typeof CalendarioRoute
   '/despesas': typeof DespesasRoute
   '/poupanca': typeof PoupancaRoute
   '/viagens/$tripId': typeof ViagensTripIdRoute
@@ -65,12 +74,25 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/despesas' | '/poupanca' | '/viagens/$tripId' | '/viagens/'
+  fullPaths:
+    | '/'
+    | '/calendario'
+    | '/despesas'
+    | '/poupanca'
+    | '/viagens/$tripId'
+    | '/viagens/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/despesas' | '/poupanca' | '/viagens/$tripId' | '/viagens'
+  to:
+    | '/'
+    | '/calendario'
+    | '/despesas'
+    | '/poupanca'
+    | '/viagens/$tripId'
+    | '/viagens'
   id:
     | '__root__'
     | '/'
+    | '/calendario'
     | '/despesas'
     | '/poupanca'
     | '/viagens/$tripId'
@@ -79,6 +101,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CalendarioRoute: typeof CalendarioRoute
   DespesasRoute: typeof DespesasRoute
   PoupancaRoute: typeof PoupancaRoute
   ViagensTripIdRoute: typeof ViagensTripIdRoute
@@ -92,6 +115,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/calendario': {
+      id: '/calendario'
+      path: '/calendario'
+      fullPath: '/calendario'
+      preLoaderRoute: typeof CalendarioRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/despesas': {
@@ -127,6 +157,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CalendarioRoute: CalendarioRoute,
   DespesasRoute: DespesasRoute,
   PoupancaRoute: PoupancaRoute,
   ViagensTripIdRoute: ViagensTripIdRoute,
