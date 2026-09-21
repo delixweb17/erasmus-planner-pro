@@ -155,7 +155,7 @@ function ExpensesPage() {
                         <>
                           {" · "}
                           <Link to="/viagens/$tripId" params={{ tripId: e.tripId }} className="hover:underline">
-                            {tripById[e.tripId].name}
+                            {tripById[e.tripId]?.name}
                           </Link>
                         </>
                       )}

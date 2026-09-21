@@ -76,7 +76,7 @@ export function PeoplePicker({
 interface TripFormProps {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  trip?: Trip;
+  trip?: Trip | undefined;
 }
 
 export function TripFormDialog({ open, onOpenChange, trip }: TripFormProps) {
@@ -120,9 +120,18 @@ export function TripFormDialog({ open, onOpenChange, trip }: TripFormProps) {
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim()) return toast.error("Dá um nome à viagem.");
-    if (form.endDate < form.startDate) return toast.error("A data de fim é anterior à de início.");
-    if (form.participants.length === 0) return toast.error("Escolhe pelo menos uma pessoa.");
+    if (!form.name.trim()) {
+      toast.error("Dá um nome à viagem.");
+      return;
+    }
+    if (form.endDate < form.startDate) {
+      toast.error("A data de fim é anterior à de início.");
+      return;
+    }
+    if (form.participants.length === 0) {
+      toast.error("Escolhe pelo menos uma pessoa.");
+      return;
+    }
     const payload = {
       name: form.name.trim(),
       cities: form.cities.split(",").map((c) => c.trim()).filter(Boolean),
@@ -133,7 +142,7 @@ export function TripFormDialog({ open, onOpenChange, trip }: TripFormProps) {
       status: form.status,
       lat: Number(form.lat),
       lng: Number(form.lng),
-      notes: form.notes.trim() || undefined,
+      ...(form.notes.trim() ? { notes: form.notes.trim() } : {}),
     };
     if (trip) {
       updateTrip(trip.id, payload);
@@ -220,8 +229,8 @@ export function TripFormDialog({ open, onOpenChange, trip }: TripFormProps) {
 interface ExpenseFormProps {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  expense?: Expense;
-  defaultTripId?: string | null;
+  expense?: Expense | undefined;
+  defaultTripId?: string | null | undefined;
 }
 
 export function ExpenseFormDialog({ open, onOpenChange, expense, defaultTripId = null }: ExpenseFormProps) {
@@ -279,9 +288,18 @@ export function ExpenseFormDialog({ open, onOpenChange, expense, defaultTripId =
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const amount = Number(form.amount.replace(",", "."));
-    if (!form.description.trim()) return toast.error("Descreve a despesa.");
-    if (!amount || amount <= 0) return toast.error("Indica um valor válido.");
-    if (form.splitBetween.length === 0) return toast.error("Escolhe quem divide.");
+    if (!form.description.trim()) {
+      toast.error("Descreve a despesa.");
+      return;
+    }
+    if (!amount || amount <= 0) {
+      toast.error("Indica um valor válido.");
+      return;
+    }
+    if (form.splitBetween.length === 0) {
+      toast.error("Escolhe quem divide.");
+      return;
+    }
     const payload = {
       description: form.description.trim(),
       amount: Math.round(amount * 100) / 100,
@@ -376,7 +394,7 @@ export function SavingsFormDialog({
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  personId?: string;
+  personId?: string | undefined;
 }) {
   const { addSavings } = useStore();
   const { people } = useData();
@@ -389,8 +407,11 @@ export function SavingsFormDialog({
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const amount = Number(form.amount.replace(",", "."));
-    if (!amount) return toast.error("Indica um valor.");
-    addSavings({ personId: form.personId, amount: Math.round(amount * 100) / 100, date: form.date, note: form.note.trim() || undefined });
+    if (!amount) {
+      toast.error("Indica um valor.");
+      return;
+    }
+    addSavings({ personId: form.personId, amount: Math.round(amount * 100) / 100, date: form.date, ...(form.note.trim() ? { note: form.note.trim() } : {}) });
     toast.success("Poupança registada.");
     onOpenChange(false);
   };

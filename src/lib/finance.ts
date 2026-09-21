@@ -18,16 +18,16 @@ export function netBalances(
   for (const p of people) net[p.id] = 0;
   for (const e of expenses) {
     if (net[e.paidBy] === undefined) continue;
-    net[e.paidBy] += e.amount;
+    net[e.paidBy] = (net[e.paidBy] ?? 0) + e.amount;
     for (const pid of e.splitBetween) {
-      if (net[pid] !== undefined) net[pid] -= shareOf(e, pid);
+      if (net[pid] !== undefined) net[pid] = (net[pid] ?? 0) - shareOf(e, pid);
     }
   }
   for (const s of settlements) {
-    if (net[s.from] !== undefined) net[s.from] += s.amount;
-    if (net[s.to] !== undefined) net[s.to] -= s.amount;
+    if (net[s.from] !== undefined) net[s.from] = (net[s.from] ?? 0) + s.amount;
+    if (net[s.to] !== undefined) net[s.to] = (net[s.to] ?? 0) - s.amount;
   }
-  for (const k of Object.keys(net)) net[k] = round2(net[k]);
+  for (const k of Object.keys(net)) net[k] = round2(net[k] ?? 0);
   return net;
 }
 
@@ -52,8 +52,8 @@ export function simplifyDebts(net: Record<PersonId, number>): Transfer[] {
   let i = 0;
   let j = 0;
   while (i < debtors.length && j < creditors.length) {
-    const d = debtors[i];
-    const c = creditors[j];
+    const d = debtors[i]!;
+    const c = creditors[j]!;
     const amount = Math.min(d.amount, c.amount);
     if (amount > 0.005) transfers.push({ from: d.id, to: c.id, amount: round2(amount) });
     d.amount -= amount;
@@ -97,8 +97,9 @@ export function tripCost(trip: Trip, expenses: Expense[]): TripCost {
 export function savingsByPerson(data: AppData): Record<PersonId, number> {
   const out: Record<PersonId, number> = {};
   for (const p of data.people) out[p.id] = 0;
-  for (const s of data.savings) if (out[s.personId] !== undefined) out[s.personId] += s.amount;
-  for (const k of Object.keys(out)) out[k] = round2(out[k]);
+  for (const s of data.savings)
+    if (out[s.personId] !== undefined) out[s.personId] = (out[s.personId] ?? 0) + s.amount;
+  for (const k of Object.keys(out)) out[k] = round2(out[k] ?? 0);
   return out;
 }
 

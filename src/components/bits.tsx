@@ -20,10 +20,11 @@ export function PersonAvatar({
   size = "md",
   className,
 }: {
-  person: Person;
+  person: Person | undefined;
   size?: "sm" | "md" | "lg";
-  className?: string;
+  className?: string | undefined;
 }) {
+  if (!person) return null;
   return (
     <span
       title={person.name}
@@ -167,7 +168,7 @@ export function Stat({
   label: string;
   value: ReactNode;
   hint?: ReactNode;
-  className?: string;
+  className?: string | undefined;
   tone?: "default" | "primary";
 }) {
   return (
