@@ -1,0 +1,121 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { Download, RotateCcw, Upload } from "lucide-react";
+import { useRef } from "react";
+import { toast } from "sonner";
+import { PageHeader } from "@/components/AppShell";
+import { Loaded, PersonAvatar, Section } from "@/components/bits";
+import { Field } from "@/components/forms";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useData, useStore } from "@/data/store";
+import type { AppData } from "@/data/types";
+
+export const Route = createFileRoute("/definicoes")({
+  head: () => ({
+    meta: [
+      { title: "Definições — Erasmus em Pisa 27/28" },
+      { name: "description", content: "Nomes das quatro pessoas, meta de poupança e cópia de segurança dos dados." },
+      { property: "og:title", content: "Definições — Erasmus em Pisa 27/28" },
+      { property: "og:description", content: "Nomes das quatro pessoas, meta de poupança e cópia de segurança dos dados." },
+    ],
+  }),
+  component: () => <Loaded>{() => <SettingsPage />}</Loaded>,
+});
+
+function SettingsPage() {
+  const data = useData();
+  const { updatePerson, setSavingsGoal, importData, resetData } = useStore();
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const exportJson = () => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `erasmus-pisa-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const onImport = async (file?: File) => {
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text()) as AppData;
+      if (parsed.version !== 1 || !Array.isArray(parsed.trips)) throw new Error("formato");
+      importData(parsed);
+      toast.success("Dados importados.");
+    } catch {
+      toast.error("Ficheiro inválido.");
+    }
+  };
+
+  return (
+    <>
+      <PageHeader eyebrow="Grupo" title="Definições" description="Os dados ficam guardados neste navegador." />
+
+      <div className="grid gap-10 lg:grid-cols-2">
+        <Section title="Pessoas">
+          <div className="card-soft divide-y">
+            {data.people.map((p) => (
+              <div key={p.id} className="flex items-center gap-3 px-4 py-3">
+                <PersonAvatar person={p} />
+                <Input
+                  value={p.name}
+                  onChange={(e) => updatePerson(p.id, { name: e.target.value })}
+                  aria-label={`Nome de ${p.name}`}
+                  className="max-w-xs"
+                />
+              </div>
+            ))}
+          </div>
+        </Section>
+
+        <div className="space-y-10">
+          <Section title="Poupança">
+            <div className="card-soft p-5">
+              <Field label="Meta por pessoa (€)" hint="Prazo: 1 de setembro de 2027.">
+                <Input
+                  type="number"
+                  min={0}
+                  step={100}
+                  value={data.savingsGoal}
+                  onChange={(e) => setSavingsGoal(Number(e.target.value) || 0)}
+                  className="max-w-40"
+                />
+              </Field>
+            </div>
+          </Section>
+
+          <Section title="Dados">
+            <div className="card-soft flex flex-wrap gap-2 p-5">
+              <Button variant="outline" onClick={exportJson}>
+                <Download /> Exportar
+              </Button>
+              <Button variant="outline" onClick={() => fileRef.current?.click()}>
+                <Upload /> Importar
+              </Button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="application/json"
+                className="hidden"
+                onChange={(e) => onImport(e.target.files?.[0])}
+              />
+              <Button
+                variant="ghost"
+                className="text-destructive hover:text-destructive"
+                onClick={async () => {
+                  if (!confirm("Repor os dados iniciais? Perdes despesas, poupanças e alterações.")) return;
+                  await resetData();
+                  toast.success("Dados repostos.");
+                }}
+              >
+                <RotateCcw /> Repor seed
+              </Button>
+            </div>
+          </Section>
+        </div>
+      </div>
+    </>
+  );
+}
