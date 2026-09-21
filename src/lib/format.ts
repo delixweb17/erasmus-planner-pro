@@ -15,7 +15,7 @@ export const fmtEurCents = (n: number) => eurCents.format(n);
 
 const parse = (iso: string) => new Date(iso + "T00:00:00");
 
-const shortDay = new Intl.DateTimeFormat("pt-PT", { day: "numeric", month: "short" });
+const MONTHS_SHORT = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 const longDay = new Intl.DateTimeFormat("pt-PT", {
   weekday: "long",
   day: "numeric",
@@ -24,7 +24,10 @@ const longDay = new Intl.DateTimeFormat("pt-PT", {
 });
 const monthYear = new Intl.DateTimeFormat("pt-PT", { month: "long", year: "numeric" });
 
-export const fmtShort = (iso: string) => shortDay.format(parse(iso)).replace(".", "");
+export const fmtShort = (iso: string) => {
+  const d = parse(iso);
+  return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`;
+};
 export const fmtLong = (iso: string) => longDay.format(parse(iso));
 export const fmtMonthYear = (iso: string) => monthYear.format(parse(iso));
 
