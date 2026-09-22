@@ -109,9 +109,9 @@ function Month({ year, month, trips }: { year: number; month: number; trips: Tri
           const period = periodForDate(iso);
           const dayTrips = trips.filter((t) => iso >= t.startDate && iso <= t.endDate);
           const trip = dayTrips[0];
-          const isStart = trip && (trip.startDate === iso || iso.endsWith("-01"));
+          const weekday = i % 7;
+          const isStart = trip && (trip.startDate === iso || weekday === 0);
           const isEnd = trip && trip.endDate === iso;
-          const weekday = (i + 0) % 7;
           return (
             <div
               key={iso}
