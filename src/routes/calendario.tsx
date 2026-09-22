@@ -28,7 +28,20 @@ const MONTHS = [
   { y: 2028, m: 1 },
 ];
 const WEEKDAYS = ["S", "T", "Q", "Q", "S", "S", "D"];
-const monthName = new Intl.DateTimeFormat("pt-PT", { month: "long", year: "numeric" });
+const MONTH_NAMES = [
+  "Janeiro",
+  "Fevereiro",
+  "Março",
+  "Abril",
+  "Maio",
+  "Junho",
+  "Julho",
+  "Agosto",
+  "Setembro",
+  "Outubro",
+  "Novembro",
+  "Dezembro",
+];
 
 const PERIOD_BG: Record<PeriodKind, string> = {
   aulas: "bg-aulas/8",
