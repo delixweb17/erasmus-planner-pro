@@ -95,7 +95,9 @@ function Month({ year, month, trips }: { year: number; month: number; trips: Tri
 
   return (
     <div className="card-soft overflow-hidden">
-      <h2 className="border-b px-4 py-3 text-base font-semibold capitalize">{monthName.format(first)}</h2>
+      <h2 className="border-b px-4 py-3 text-base font-semibold">
+        {MONTH_NAMES[month]} {year}
+      </h2>
       <div className="grid grid-cols-7 px-2 pt-2 text-center text-[10px] font-semibold text-muted-foreground">
         {WEEKDAYS.map((d, i) => (
           <span key={i}>{d}</span>
