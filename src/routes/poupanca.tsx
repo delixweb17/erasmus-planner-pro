@@ -45,7 +45,11 @@ function SavingsPage() {
       <PageHeader
         eyebrow={`Meta: ${fmtEur(savingsGoal)} por pessoa até ${fmtLong(savingsDeadline)}`}
         title="Poupança"
-        description={`As viagens somam ${fmtEur(budgetNeeded)} por pessoa. A meta deixa ${fmtEur(savingsGoal - budgetNeeded)} de folga para o dia a dia.`}
+        description={
+          savingsGoal - budgetNeeded >= 0
+            ? `As viagens somam ${fmtEur(budgetNeeded)} por pessoa. A meta deixa ${fmtEur(savingsGoal - budgetNeeded)} de folga para o dia a dia.`
+            : `As viagens somam ${fmtEur(budgetNeeded)} por pessoa — ${fmtEur(budgetNeeded - savingsGoal)} acima da meta. Ou se poupa mais, ou se corta numa viagem.`
+        }
         actions={
           <Button onClick={() => { setPersonId(undefined); setOpen(true); }}>
             <Plus /> Registar

@@ -28,7 +28,20 @@ const MONTHS = [
   { y: 2028, m: 1 },
 ];
 const WEEKDAYS = ["S", "T", "Q", "Q", "S", "S", "D"];
-const monthName = new Intl.DateTimeFormat("pt-PT", { month: "long", year: "numeric" });
+const MONTH_NAMES = [
+  "Janeiro",
+  "Fevereiro",
+  "Março",
+  "Abril",
+  "Maio",
+  "Junho",
+  "Julho",
+  "Agosto",
+  "Setembro",
+  "Outubro",
+  "Novembro",
+  "Dezembro",
+];
 
 const PERIOD_BG: Record<PeriodKind, string> = {
   aulas: "bg-aulas/8",
@@ -82,7 +95,9 @@ function Month({ year, month, trips }: { year: number; month: number; trips: Tri
 
   return (
     <div className="card-soft overflow-hidden">
-      <h2 className="border-b px-4 py-3 text-base font-semibold capitalize">{monthName.format(first)}</h2>
+      <h2 className="border-b px-4 py-3 text-base font-semibold">
+        {MONTH_NAMES[month]} {year}
+      </h2>
       <div className="grid grid-cols-7 px-2 pt-2 text-center text-[10px] font-semibold text-muted-foreground">
         {WEEKDAYS.map((d, i) => (
           <span key={i}>{d}</span>
@@ -94,9 +109,9 @@ function Month({ year, month, trips }: { year: number; month: number; trips: Tri
           const period = periodForDate(iso);
           const dayTrips = trips.filter((t) => iso >= t.startDate && iso <= t.endDate);
           const trip = dayTrips[0];
-          const isStart = trip && (trip.startDate === iso || iso.endsWith("-01"));
+          const weekday = i % 7;
+          const isStart = trip && (trip.startDate === iso || weekday === 0);
           const isEnd = trip && trip.endDate === iso;
-          const weekday = (i + 0) % 7;
           return (
             <div
               key={iso}
