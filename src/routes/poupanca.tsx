@@ -3,10 +3,11 @@ import { Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { PageHeader } from "@/components/AppShell";
 import { BudgetBar, EmptyState, Loaded, PersonAvatar, Section, Stat } from "@/components/bits";
-import { SavingsFormDialog } from "@/components/forms";
+import { ProfilePicker, SavingsFormDialog, monthLabel } from "@/components/forms";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useData, useStore } from "@/data/store";
-import { monthsUntil, savingsByPerson, totalBudgetPerPerson } from "@/lib/finance";
+import { requiredPerMonth, savedInMonth, savingsByPerson, totalBudgetPerPerson } from "@/lib/finance";
 import { fmtEur, fmtEurCents, fmtLong, fmtShort } from "@/lib/format";
 import { daysBetween, todayISO } from "@/lib/semester";
 import { cn } from "@/lib/utils";
@@ -15,9 +16,9 @@ export const Route = createFileRoute("/poupanca")({
   head: () => ({
     meta: [
       { title: "Poupança — Erasmus em Pisa 27/28" },
-      { name: "description", content: "Progresso de cada um até aos 3000 € por pessoa, a atingir até 1 de setembro de 2027." },
+      { name: "description", content: "A tua poupança privada e o total do grupo até aos 3000 € por pessoa, a atingir até 1 de setembro de 2027." },
       { property: "og:title", content: "Poupança — Erasmus em Pisa 27/28" },
-      { property: "og:description", content: "Progresso de cada um até aos 3000 € por pessoa, a atingir até 1 de setembro de 2027." },
+      { property: "og:description", content: "A tua poupança privada e o total do grupo até aos 3000 € por pessoa, a atingir até 1 de setembro de 2027." },
     ],
   }),
   component: () => <Loaded>{() => <SavingsPage />}</Loaded>,
@@ -25,95 +26,135 @@ export const Route = createFileRoute("/poupanca")({
 
 function SavingsPage() {
   const data = useData();
-  const { people, savings: entries, savingsGoal, savingsDeadline, trips } = data;
-  const { removeSavings } = useStore();
+  const { people, savings: entries, savingsGoal, savingsDeadline, trips, monthlyPlan } = data;
+  const { removeSavings, activeProfile, setActiveProfile, setMonthlyPlan } = useStore();
   const [open, setOpen] = useState(false);
-  const [personId, setPersonId] = useState<string | undefined>();
+  const [kind, setKind] = useState<"mensal" | "extra">("mensal");
 
+  const me = people.find((p) => p.id === activeProfile);
   const today = todayISO();
   const saved = savingsByPerson(data);
   const total = Object.values(saved).reduce((s, v) => s + v, 0);
   const target = savingsGoal * people.length;
-  const months = monthsUntil(today, savingsDeadline);
   const days = daysBetween(today, savingsDeadline);
   const budgetNeeded = totalBudgetPerPerson(trips);
-  const byId = Object.fromEntries(people.map((p) => [p.id, p]));
-  const history = [...entries].sort((a, b) => b.date.localeCompare(a.date));
+
+  const header = (
+    <PageHeader
+      eyebrow={`Meta: ${fmtEur(savingsGoal)} por pessoa até ${fmtLong(savingsDeadline)}`}
+      title="Poupança"
+      description={
+        savingsGoal - budgetNeeded >= 0
+          ? `As viagens somam ${fmtEur(budgetNeeded)} por pessoa. A meta deixa ${fmtEur(savingsGoal - budgetNeeded)} de folga para o dia a dia.`
+          : `As viagens somam ${fmtEur(budgetNeeded)} por pessoa — ${fmtEur(budgetNeeded - savingsGoal)} acima da meta.`
+      }
+      actions={
+        me && (
+          <Button onClick={() => { setKind("mensal"); setOpen(true); }}>
+            <Plus /> Registar mês
+          </Button>
+        )
+      }
+    />
+  );
+
+  const group = (
+    <Section title="O grupo" className="mt-10">
+      <div className="card-soft p-5">
+        <div className="flex items-center justify-between text-sm">
+          <span className="font-medium">Em conjunto, sem mostrar quem tem quanto</span>
+          <span className="tabular text-muted-foreground">{target > 0 ? Math.round((total / target) * 100) : 0}% de {fmtEur(target)}</span>
+        </div>
+        <BudgetBar ratio={target > 0 ? total / target : 0} className="mt-2 [&>div]:bg-success" />
+        <p className="mt-2 text-xs text-muted-foreground">
+          {days > 0 ? `${days} dias até ${fmtShort(savingsDeadline)}` : "O prazo já passou"}
+        </p>
+      </div>
+    </Section>
+  );
+
+  if (!me) {
+    return (
+      <>
+        {header}
+        <ProfilePicker />
+        {group}
+      </>
+    );
+  }
+
+  const mine = saved[me.id] ?? 0;
+  const remaining = Math.max(0, savingsGoal - mine);
+  const perMonth = requiredPerMonth(mine, savingsGoal, today, savingsDeadline);
+  const thisMonth = today.slice(0, 7);
+  const thisMonthSaved = savedInMonth(data, me.id, thisMonth);
+  const plan = monthlyPlan[me.id] ?? 0;
+  const history = entries.filter((e) => e.personId === me.id).sort((a, b) => b.date.localeCompare(a.date));
 
   return (
     <>
-      <PageHeader
-        eyebrow={`Meta: ${fmtEur(savingsGoal)} por pessoa até ${fmtLong(savingsDeadline)}`}
-        title="Poupança"
-        description={
-          savingsGoal - budgetNeeded >= 0
-            ? `As viagens somam ${fmtEur(budgetNeeded)} por pessoa. A meta deixa ${fmtEur(savingsGoal - budgetNeeded)} de folga para o dia a dia.`
-            : `As viagens somam ${fmtEur(budgetNeeded)} por pessoa — ${fmtEur(budgetNeeded - savingsGoal)} acima da meta. Ou se poupa mais, ou se corta numa viagem.`
-        }
-        actions={
-          <Button onClick={() => { setPersonId(undefined); setOpen(true); }}>
-            <Plus /> Registar
-          </Button>
-        }
-      />
+      {header}
+
+      <div className="fade-up mb-4 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+        <PersonAvatar person={me} size="sm" />
+        <span>A ver como <span className="font-medium text-foreground">{me.name}</span></span>
+        <button type="button" className="cursor-pointer text-primary hover:underline" onClick={() => setActiveProfile(null)}>
+          Não és tu? Trocar
+        </button>
+      </div>
 
       <div className="fade-up grid gap-4 sm:grid-cols-3">
-        <Stat tone="primary" label="Poupado em conjunto" value={fmtEur(total)} hint={`${Math.round((total / target) * 100)}% de ${fmtEur(target)}`} />
-        <Stat label="Tempo até à meta" value={days > 0 ? `${days} dias` : "Chegou"} hint={days > 0 ? `≈ ${months.toFixed(1)} meses` : fmtShort(savingsDeadline)} />
+        <Stat tone="primary" label="A tua poupança" value={fmtEur(mine)} hint={remaining > 0 ? `Faltam ${fmtEur(remaining)}` : "Meta atingida"} />
+        <Stat label="Precisas por mês" value={remaining > 0 ? fmtEur(perMonth) : "—"} hint="para chegar a tempo" />
         <Stat
-          label="Ritmo necessário / pessoa"
-          value={months > 0 ? `${fmtEur(Math.max(0, (savingsGoal - total / people.length) / months))}/mês` : "—"}
-          hint="média para chegar a tempo"
+          label={`Este mês (${monthLabel(thisMonth)})`}
+          value={fmtEur(thisMonthSaved)}
+          hint={thisMonthSaved >= perMonth ? "No ritmo certo" : `Faltam ${fmtEur(perMonth - thisMonthSaved)} este mês`}
         />
       </div>
 
-      <Section title="Por pessoa" className="mt-10">
-        <div className="grid gap-4 sm:grid-cols-2">
-          {people.map((p) => {
-            const v = saved[p.id] ?? 0;
-            const ratio = savingsGoal > 0 ? v / savingsGoal : 0;
-            const remaining = Math.max(0, savingsGoal - v);
-            const perMonth = months > 0 ? remaining / months : 0;
-            const done = remaining <= 0;
-            return (
-              <div key={p.id} className={cn("card-soft p-5", done && "border-success/50")}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <PersonAvatar person={p} size="lg" />
-                    <div>
-                      <p className="font-semibold">{p.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {done ? "Meta atingida" : `Faltam ${fmtEur(remaining)} · ${fmtEur(perMonth)}/mês`}
-                      </p>
-                    </div>
-                  </div>
-                  <Button size="sm" variant="outline" onClick={() => { setPersonId(p.id); setOpen(true); }}>
-                    <Plus /> Registar
-                  </Button>
-                </div>
-                <p className="tabular mt-5 font-display text-3xl font-semibold">
-                  {fmtEur(v)} <span className="text-base font-normal text-muted-foreground">/ {fmtEur(savingsGoal)}</span>
-                </p>
-                <BudgetBar ratio={ratio} className="mt-2 [&>div]:bg-success" />
-              </div>
-            );
-          })}
+      <div className="mt-4 card-soft p-5">
+        <BudgetBar ratio={savingsGoal > 0 ? mine / savingsGoal : 0} className="[&>div]:bg-success" />
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          <div className="space-y-1.5">
+            <p className="text-xs font-semibold text-muted-foreground">O teu depósito mensal planeado (€)</p>
+            <Input
+              type="number"
+              min={0}
+              step={10}
+              className="w-40"
+              value={plan || ""}
+              placeholder={String(Math.ceil(perMonth))}
+              onChange={(e) => setMonthlyPlan(me.id, Number(e.target.value) || 0)}
+            />
+          </div>
+          <p className="pb-2 text-xs text-muted-foreground">
+            {plan > 0
+              ? plan >= perMonth
+                ? `Com ${fmtEur(plan)}/mês chegas à meta a tempo.`
+                : `Com ${fmtEur(plan)}/mês ficas ${fmtEur(perMonth - plan)}/mês abaixo do necessário.`
+              : "Define quanto pões de lado todos os meses; fica pré-preenchido ao registar."}
+          </p>
+          <Button variant="outline" size="sm" className="ml-auto" onClick={() => { setKind("extra"); setOpen(true); }}>
+            <Plus /> Extra
+          </Button>
         </div>
-      </Section>
+      </div>
 
-      <Section title="Histórico" className="mt-10">
+      <Section title="O teu histórico" className="mt-10">
         {history.length === 0 ? (
-          <EmptyState title="Ainda sem registos." hint="Cada vez que alguém puser dinheiro de lado, regista aqui." />
+          <EmptyState title="Ainda sem registos." hint="Regista o depósito de cada mês e os extras que forem aparecendo." />
         ) : (
           <ul className="card-soft divide-y">
             {history.map((s) => (
               <li key={s.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-                <PersonAvatar person={byId[s.personId]} size="sm" />
-                <span className="w-14 text-xs text-muted-foreground">{fmtShort(s.date)}</span>
-                <span className="min-w-0 flex-1 truncate">
-                  {byId[s.personId]?.name}
-                  {s.note && <span className="text-muted-foreground"> · {s.note}</span>}
+                <span className="w-28 text-xs text-muted-foreground">
+                  {s.kind === "mensal" && s.month ? monthLabel(s.month) : fmtShort(s.date)}
                 </span>
+                <span className="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground">
+                  {s.kind === "mensal" ? "Mensal" : "Extra"}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-muted-foreground">{s.note}</span>
                 <span className={cn("tabular font-semibold", s.amount < 0 && "text-destructive")}>
                   {s.amount > 0 ? "+" : ""}
                   {fmtEurCents(s.amount)}
@@ -132,7 +173,9 @@ function SavingsPage() {
         )}
       </Section>
 
-      <SavingsFormDialog open={open} onOpenChange={setOpen} personId={personId} />
+      {group}
+
+      <SavingsFormDialog open={open} onOpenChange={setOpen} personId={me.id} defaultKind={kind} />
     </>
   );
 }

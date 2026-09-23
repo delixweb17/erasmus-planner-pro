@@ -6,7 +6,7 @@ import { BudgetBar, Loaded, PersonAvatar, Section, Stat, hasConflict } from "@/c
 import { TripCard } from "@/components/TripCard";
 import { ExpenseFormDialog } from "@/components/forms";
 import { Button } from "@/components/ui/button";
-import { useData } from "@/data/store";
+import { useData, useStore } from "@/data/store";
 import { netBalances, savingsByPerson, simplifyDebts, totalBudgetPerPerson, tripCost } from "@/lib/finance";
 import { fmtEur, fmtLong, fmtShort } from "@/lib/format";
 import { daysBetween, todayISO } from "@/lib/semester";
@@ -15,9 +15,9 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "Painel — Erasmus em Pisa 27/28" },
-      { name: "description", content: "Resumo do semestre: próxima viagem, orçamento, saldos e poupança dos quatro." },
+      { name: "description", content: "Resumo do semestre: próxima viagem, orçamento, saldos e poupança do grupo." },
       { property: "og:title", content: "Painel — Erasmus em Pisa 27/28" },
-      { property: "og:description", content: "Resumo do semestre: próxima viagem, orçamento, saldos e poupança dos quatro." },
+      { property: "og:description", content: "Resumo do semestre: próxima viagem, orçamento, saldos e poupança do grupo." },
     ],
   }),
   component: Index,
@@ -31,6 +31,8 @@ function Dashboard() {
   const data = useData();
   const { people, trips, expenses, settlements, savingsGoal, savingsDeadline } = data;
   const [expenseOpen, setExpenseOpen] = useState(false);
+  const { activeProfile } = useStore();
+  const me = people.find((p) => p.id === activeProfile);
   const today = todayISO();
 
   const sorted = [...trips].sort((a, b) => a.startDate.localeCompare(b.startDate));
@@ -181,24 +183,31 @@ function Dashboard() {
             }
           >
             <div className="card-soft space-y-4 p-5">
-              {people.map((p) => {
-                const v = savings[p.id] ?? 0;
-                const ratio = savingsGoal > 0 ? v / savingsGoal : 0;
-                return (
-                  <div key={p.id}>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="flex items-center gap-2">
-                        <PersonAvatar person={p} size="sm" /> {p.name}
-                      </span>
-                      <span className="tabular">
-                        <span className="font-semibold">{fmtEur(v)}</span>
-                        <span className="text-muted-foreground"> / {fmtEur(savingsGoal)}</span>
-                      </span>
-                    </div>
-                    <BudgetBar ratio={ratio} thin className="mt-1.5 [&>div]:bg-success" />
+              {me ? (
+                <div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="flex items-center gap-2">
+                      <PersonAvatar person={me} size="sm" /> A tua poupança
+                    </span>
+                    <span className="tabular">
+                      <span className="font-semibold">{fmtEur(savings[me.id] ?? 0)}</span>
+                      <span className="text-muted-foreground"> / {fmtEur(savingsGoal)}</span>
+                    </span>
                   </div>
-                );
-              })}
+                  <BudgetBar ratio={savingsGoal > 0 ? (savings[me.id] ?? 0) / savingsGoal : 0} thin className="mt-1.5 [&>div]:bg-success" />
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  <Link to="/poupanca" className="font-medium text-primary hover:underline">Escolhe quem és</Link> para veres a tua poupança.
+                </p>
+              )}
+              <div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Grupo</span>
+                  <span className="tabular text-muted-foreground">{savingsTarget > 0 ? Math.round((savingsTotal / savingsTarget) * 100) : 0}%</span>
+                </div>
+                <BudgetBar ratio={savingsTarget > 0 ? savingsTotal / savingsTarget : 0} thin className="mt-1.5 [&>div]:bg-success" />
+              </div>
             </div>
           </Section>
         </div>
