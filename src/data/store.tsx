@@ -8,8 +8,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { AppData, Expense, Person, SavingsEntry, Settlement, Trip } from "./types";
-import { repository } from "./repository";
+import type { AppData, Booking, Expense, Person, SavingsEntry, Settlement, Trip } from "./types";
+import { migrate, repository } from "./repository";
+import { defaultBookings } from "./seed";
 
 export const newId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -29,6 +30,11 @@ interface StoreActions {
   addSettlement: (s: Omit<Settlement, "id">) => void;
   removeSettlement: (id: string) => void;
   setSavingsGoal: (goal: number) => void;
+  setMonthlyPlan: (personId: string, amount: number) => void;
+  addBooking: (b: Omit<Booking, "id">) => void;
+  updateBooking: (id: string, patch: Partial<Booking>) => void;
+  removeBooking: (id: string) => void;
+  setActiveProfile: (id: string | null) => void;
   importData: (data: AppData) => void;
   resetData: () => Promise<void>;
 }
@@ -36,6 +42,7 @@ interface StoreActions {
 interface StoreValue extends StoreActions {
   data: AppData | null;
   ready: boolean;
+  activeProfile: string | null;
 }
 
 const StoreContext = createContext<StoreValue | null>(null);
@@ -43,10 +50,12 @@ const StoreContext = createContext<StoreValue | null>(null);
 export function DataProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<AppData | null>(null);
   const loaded = useRef(false);
+  const [activeProfile, setActive] = useState<string | null>(null);
 
   useEffect(() => {
     repository.load().then((d) => {
       loaded.current = true;
+      setActive(repository.getActiveProfile());
       setData(d);
     });
   }, []);
@@ -68,7 +77,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
         })),
       addTrip: (trip) => {
         const created = { ...trip, id: newId() };
-        mutate((d) => ({ ...d, trips: [...d.trips, created] }));
+        mutate((d) => ({
+          ...d,
+          trips: [...d.trips, created],
+          bookings: [...d.bookings, ...defaultBookings(created, () => newId())],
+        }));
         return created;
       },
       updateTrip: (id, patch) =>
@@ -80,6 +93,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         mutate((d) => ({
           ...d,
           trips: d.trips.filter((t) => t.id !== id),
+          bookings: d.bookings.filter((b) => b.tripId !== id),
           expenses: d.expenses.map((e) => (e.tripId === id ? { ...e, tripId: null } : e)),
         })),
       addExpense: (expense) =>
@@ -100,7 +114,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
       removeSettlement: (id) =>
         mutate((d) => ({ ...d, settlements: d.settlements.filter((s) => s.id !== id) })),
       setSavingsGoal: (goal) => mutate((d) => ({ ...d, savingsGoal: goal })),
-      importData: (imported) => setData(imported),
+      setMonthlyPlan: (personId, amount) =>
+        mutate((d) => ({ ...d, monthlyPlan: { ...d.monthlyPlan, [personId]: amount } })),
+      addBooking: (b) => mutate((d) => ({ ...d, bookings: [...d.bookings, { ...b, id: newId() }] })),
+      updateBooking: (id, patch) =>
+        mutate((d) => ({ ...d, bookings: d.bookings.map((b) => (b.id === id ? { ...b, ...patch } : b)) })),
+      removeBooking: (id) => mutate((d) => ({ ...d, bookings: d.bookings.filter((b) => b.id !== id) })),
+      setActiveProfile: (id) => {
+        repository.setActiveProfile(id);
+        setActive(id);
+      },
+      importData: (imported) => setData(migrate(imported)),
       resetData: async () => {
         const seed = await repository.reset();
         setData(seed);
@@ -110,8 +134,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<StoreValue>(
-    () => ({ data, ready: data !== null, ...actions }),
-    [data, actions],
+    () => ({ data, ready: data !== null, activeProfile, ...actions }),
+    [data, actions, activeProfile],
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

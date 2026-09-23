@@ -116,3 +116,27 @@ export function totalBudgetPerPerson(trips: Trip[], personId?: PersonId) {
     .filter((t) => !personId || t.participants.includes(personId))
     .reduce((s, t) => s + t.budgetPerPerson, 0);
 }
+
+/** Soma dos depósitos de uma pessoa num mês (yyyy-mm). */
+export function savedInMonth(data: AppData, personId: PersonId, month: string) {
+  return round2(
+    data.savings
+      .filter((s) => s.personId === personId && (s.month ?? s.date.slice(0, 7)) === month)
+      .reduce((a, s) => a + s.amount, 0),
+  );
+}
+
+/** Quanto falta por mês (incluindo o atual) para chegar à meta no prazo. */
+export function requiredPerMonth(saved: number, goal: number, todayISO: string, deadlineISO: string) {
+  const a = new Date(todayISO + "T00:00:00");
+  const b = new Date(deadlineISO + "T00:00:00");
+  const monthsLeft = Math.max(1, (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()));
+  return round2(Math.max(0, goal - saved) / monthsLeft);
+}
+
+export function bookingTotals(bookings: { estimated: number; actual?: number; status: string }[]) {
+  const committed = bookings.reduce((s, b) => s + (b.actual ?? b.estimated), 0);
+  const paid = bookings.filter((b) => b.status === "pago").reduce((s, b) => s + (b.actual ?? b.estimated), 0);
+  const done = bookings.filter((b) => b.status !== "pendente").length;
+  return { committed: round2(committed), paid: round2(paid), done, total: bookings.length };
+}

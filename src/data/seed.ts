@@ -1,4 +1,13 @@
-import type { AppData, Trip } from "./types";
+import type { AppData, Booking, Trip } from "./types";
+
+export function defaultBookings(trip: Pick<Trip, "id" | "startDate" | "endDate">, makeId: (i: number) => string): Booking[] {
+  const out: Booking[] = [
+    { id: makeId(0), tripId: trip.id, category: "transporte", title: "Transporte (ida e volta)", estimated: 0, status: "pendente" },
+  ];
+  if (trip.endDate > trip.startDate)
+    out.push({ id: makeId(1), tripId: trip.id, category: "alojamento", title: "Alojamento", estimated: 0, status: "pendente" });
+  return out;
+}
 
 const all = ["p1", "p2", "p3", "p4"];
 
@@ -27,7 +36,7 @@ const trip = (
 export const PISA = { lat: 43.7228, lng: 10.4017 };
 
 export function createSeedData(): AppData {
-  return {
+  const data: AppData = {
     version: 1,
     people: [
       { id: "p1", name: "Pessoa 1", color: 0 },
@@ -55,7 +64,11 @@ export function createSeedData(): AppData {
     expenses: [],
     savings: [],
     settlements: [],
+    bookings: [],
+    monthlyPlan: {},
     savingsGoal: 3000,
     savingsDeadline: "2027-09-01",
   };
+  data.bookings = data.trips.flatMap((t) => defaultBookings(t, (i) => `b-${t.id}-${i}`));
+  return data;
 }

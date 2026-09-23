@@ -387,22 +387,39 @@ export function ExpenseFormDialog({ open, onOpenChange, expense, defaultTripId =
 
 /* ---------- Poupança ---------- */
 
+const MONTHS_PT = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
+export const monthLabel = (ym: string) => {
+  const [y, m] = ym.split("-");
+  return `${MONTHS_PT[Number(m) - 1]} ${y}`;
+};
+
 export function SavingsFormDialog({
   open,
   onOpenChange,
   personId,
+  defaultKind = "mensal",
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  personId?: string | undefined;
+  personId: string;
+  defaultKind?: "mensal" | "extra";
 }) {
   const { addSavings } = useStore();
-  const { people } = useData();
-  const [form, setForm] = useState({ personId: personId ?? people[0]?.id ?? "", amount: "", date: todayISO(), note: "" });
+  const data = useData();
+  const plan = data.monthlyPlan[personId] ?? 0;
+  const blank = () => ({
+    kind: defaultKind,
+    amount: defaultKind === "mensal" && plan ? String(plan) : "",
+    date: todayISO(),
+    month: todayISO().slice(0, 7),
+    note: "",
+  });
+  const [form, setForm] = useState(blank);
 
   useEffect(() => {
-    if (open) setForm({ personId: personId ?? people[0]?.id ?? "", amount: "", date: todayISO(), note: "" });
-  }, [open, personId, people]);
+    if (open) setForm(blank());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, personId, defaultKind]);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -411,7 +428,20 @@ export function SavingsFormDialog({
       toast.error("Indica um valor.");
       return;
     }
-    addSavings({ personId: form.personId, amount: Math.round(amount * 100) / 100, date: form.date, ...(form.note.trim() ? { note: form.note.trim() } : {}) });
+    if (
+      form.kind === "mensal" &&
+      data.savings.some((s) => s.personId === personId && s.kind === "mensal" && s.month === form.month) &&
+      !confirm(`Já registaste o depósito de ${monthLabel(form.month)}. Adicionar outro?`)
+    )
+      return;
+    addSavings({
+      personId,
+      amount: Math.round(amount * 100) / 100,
+      date: form.kind === "mensal" ? `${form.month}-01` : form.date,
+      kind: form.kind,
+      ...(form.kind === "mensal" ? { month: form.month } : {}),
+      ...(form.note.trim() ? { note: form.note.trim() } : {}),
+    });
     toast.success("Poupança registada.");
     onOpenChange(false);
   };
@@ -424,22 +454,34 @@ export function SavingsFormDialog({
           <DialogDescription>Valores negativos retiram do mealheiro.</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
-          <Field label="Pessoa">
-            <select className={selectClass} value={form.personId} onChange={(e) => setForm((f) => ({ ...f, personId: e.target.value }))}>
-              {people.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </Field>
+          <div className="grid grid-cols-2 gap-1 rounded-lg border p-1">
+            {(["mensal", "extra"] as const).map((k) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, kind: k }))}
+                className={cn(
+                  "cursor-pointer rounded-md py-1.5 text-sm font-medium",
+                  form.kind === k ? "bg-primary text-primary-foreground" : "text-muted-foreground",
+                )}
+              >
+                {k === "mensal" ? "Depósito do mês" : "Extra pontual"}
+              </button>
+            ))}
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Valor (€)">
               <Input inputMode="decimal" value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} placeholder="250" autoFocus />
             </Field>
-            <Field label="Data">
-              <Input type="date" value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} />
-            </Field>
+            {form.kind === "mensal" ? (
+              <Field label="Mês">
+                <Input type="month" value={form.month} onChange={(e) => setForm((f) => ({ ...f, month: e.target.value }))} />
+              </Field>
+            ) : (
+              <Field label="Data">
+                <Input type="date" value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} />
+              </Field>
+            )}
           </div>
           <Field label="Nota">
             <Input value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} placeholder="Ex.: salário de agosto" />
@@ -453,5 +495,36 @@ export function SavingsFormDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/* ---------- Perfil ativo ---------- */
+
+export function ProfilePicker({ title = "Quem está a usar este dispositivo?" }: { title?: string }) {
+  const { people } = useData();
+  const { setActiveProfile, activeProfile } = useStore();
+  return (
+    <div className="card-soft p-6">
+      <p className="font-display text-xl font-semibold">{title}</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        A tua poupança só aparece neste dispositivo depois de escolheres quem és. Os outros veem apenas o total do grupo.
+      </p>
+      <div className="mt-5 grid gap-2 sm:grid-cols-2">
+        {people.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => setActiveProfile(p.id)}
+            className={cn(
+              "flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-accent",
+              activeProfile === p.id && "border-primary bg-primary/10",
+            )}
+          >
+            <PersonAvatar person={p} />
+            <span className="font-medium">{p.name}</span>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

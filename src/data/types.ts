@@ -49,6 +49,28 @@ export interface SavingsEntry {
   amount: number;
   date: string;
   note?: string;
+  /** "mensal" = depósito do mês (yyyy-mm em `month`), "extra" = pontual */
+  kind?: "mensal" | "extra";
+  month?: string;
+}
+
+export type BookingCategory = "transporte" | "alojamento" | "atividade" | "outro";
+export type BookingStatus = "pendente" | "reservado" | "pago";
+
+export interface Booking {
+  id: string;
+  tripId: TripId;
+  category: BookingCategory;
+  title: string;
+  provider?: string;
+  link?: string;
+  /** Custo total do grupo */
+  estimated: number;
+  actual?: number;
+  status: BookingStatus;
+  responsible?: PersonId;
+  date?: string;
+  notes?: string;
 }
 
 export interface Settlement {
@@ -66,6 +88,9 @@ export interface AppData {
   expenses: Expense[];
   savings: SavingsEntry[];
   settlements: Settlement[];
+  bookings: Booking[];
+  /** Valor mensal planeado por pessoa */
+  monthlyPlan: Record<PersonId, number>;
   savingsGoal: number;
   savingsDeadline: string;
 }

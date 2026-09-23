@@ -15,6 +15,7 @@ import {
 } from "@/components/bits";
 import { CATEGORY_LABEL, ExpenseFormDialog, TripFormDialog } from "@/components/forms";
 import { Button } from "@/components/ui/button";
+import { BookingsSection } from "@/components/Bookings";
 import { useData, useStore } from "@/data/store";
 import type { Expense } from "@/data/types";
 import { tripCost } from "@/lib/finance";
@@ -130,6 +131,8 @@ function TripDetail() {
         </div>
         <BudgetBar ratio={cost.ratio} className="mt-2" />
       </div>
+
+      <BookingsSection trip={trip} />
 
       <div className="mt-10 grid gap-10 lg:grid-cols-[1.5fr_1fr]">
         <Section
