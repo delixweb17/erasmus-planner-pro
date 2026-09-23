@@ -1,5 +1,5 @@
 import type { AppData } from "./types";
-import { createSeedData } from "./seed";
+import { createSeedData, defaultBookings } from "./seed";
 
 /**
  * Camada de persistência isolada.
@@ -10,7 +10,22 @@ export interface DataRepository {
   load(): Promise<AppData>;
   save(data: AppData): Promise<void>;
   reset(): Promise<AppData>;
+  /** Perfil ativo neste dispositivo (fica fora dos dados partilhados) */
+  getActiveProfile(): string | null;
+  setActiveProfile(id: string | null): void;
 }
+
+/** Garante campos novos em dados guardados antes de existirem. */
+export function migrate(d: AppData): AppData {
+  const out = { ...d } as AppData;
+  if (!out.monthlyPlan) out.monthlyPlan = {};
+  if (!out.bookings)
+    out.bookings = out.trips.flatMap((t) => defaultBookings(t, (i) => `b-${t.id}-${i}`));
+  out.savings = out.savings.map((s) => (s.kind ? s : { ...s, kind: "extra" }));
+  return out;
+}
+
+const PROFILE_KEY = "erasmus-pisa:profile";
 
 const STORAGE_KEY = "erasmus-pisa:data";
 
@@ -26,7 +41,7 @@ export class LocalStorageRepository implements DataRepository {
       }
       const parsed = JSON.parse(raw) as AppData;
       if (parsed.version !== 1) return createSeedData();
-      return parsed;
+      return migrate(parsed);
     } catch {
       return createSeedData();
     }
@@ -41,6 +56,17 @@ export class LocalStorageRepository implements DataRepository {
     const seed = createSeedData();
     await this.save(seed);
     return seed;
+  }
+
+  getActiveProfile(): string | null {
+    if (typeof window === "undefined") return null;
+    return window.localStorage.getItem(PROFILE_KEY);
+  }
+
+  setActiveProfile(id: string | null): void {
+    if (typeof window === "undefined") return;
+    if (id) window.localStorage.setItem(PROFILE_KEY, id);
+    else window.localStorage.removeItem(PROFILE_KEY);
   }
 }
 
