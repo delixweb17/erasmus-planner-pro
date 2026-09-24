@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Choice, Field } from "@/components/forms";
+import { DatePicker } from "@/components/DatePicker";
 import { BudgetBar, PersonAvatar, Section } from "@/components/bits";
 import { useData, useStore } from "@/data/store";
 import type { Booking, BookingCategory, BookingStatus, Trip } from "@/data/types";
@@ -194,7 +195,7 @@ function BookingFormDialog({ open, onOpenChange, trip, booking }: { open: boolea
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Fornecedor"><Input value={f.provider} onChange={(e) => set("provider", e.target.value)} placeholder="Ryanair, Booking…" /></Field>
-            <Field label="Data"><Input type="date" value={f.date} onChange={(e) => set("date", e.target.value)} /></Field>
+            <Field label="Data"><DatePicker clearable placeholder="Sem data" aria-label="Data" value={f.date} onChange={(v) => set("date", v)} /></Field>
           </div>
           <Field label="Link (reserva, bilhete em PDF, Drive)"><Input value={f.link} onChange={(e) => set("link", e.target.value)} placeholder="https://…" /></Field>
           <div className="grid grid-cols-2 gap-3">

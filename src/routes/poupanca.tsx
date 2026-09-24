@@ -62,13 +62,6 @@ function SavingsPage() {
           ? `As viagens somam ${fmtEur(budgetNeeded)} por pessoa. A meta deixa ${fmtEur(savingsGoal - budgetNeeded)} de folga para o dia a dia.`
           : `As viagens somam ${fmtEur(budgetNeeded)} por pessoa — ${fmtEur(budgetNeeded - savingsGoal)} acima da meta.`
       }
-      actions={
-        me && (
-          <Button onClick={() => openDialog("extra")}>
-            <Plus /> Registar poupança
-          </Button>
-        )
-      }
     />
   );
 
@@ -149,7 +142,7 @@ function SavingsPage() {
         action={
           plans.length > 0 && (
             <Button variant="outline" size="sm" onClick={() => openDialog("mensal")}>
-              <Plus /> Novo
+              <Plus /> Depósito mensal
             </Button>
           )
         }
@@ -232,9 +225,27 @@ function SavingsPage() {
         )}
       </Section>
 
-      <Section title="O teu histórico" className="mt-10">
+      <Section
+        title="O teu histórico"
+        className="mt-10"
+        action={
+          history.length > 0 && (
+            <Button variant="outline" size="sm" onClick={() => openDialog("extra")}>
+              <Plus /> Valor único
+            </Button>
+          )
+        }
+      >
         {history.length === 0 ? (
-          <EmptyState title="Ainda sem registos." hint="Os valores únicos e os meses dos depósitos mensais aparecem aqui." />
+          <EmptyState
+            title="Ainda sem registos."
+            hint="Os valores únicos e os meses dos depósitos mensais aparecem aqui."
+            action={
+              <Button variant="outline" size="sm" onClick={() => openDialog("extra")}>
+                <Plus /> Valor único
+              </Button>
+            }
+          />
         ) : (
           <ul className="card-soft divide-y">
             {history.map((s) => (

@@ -17,6 +17,9 @@ import { useData, useStore } from "@/data/store";
 import type { Expense, ExpenseCategory, RecurringSaving, Trip, TripStatus } from "@/data/types";
 import { NumberStepper, STATUS_LABEL, PersonAvatar } from "@/components/bits";
 import { PISA } from "@/data/seed";
+import { DatePicker } from "@/components/DatePicker";
+import { PlaceSearch, searchPlaces, type Place } from "@/components/PlaceSearch";
+import { Loader2, MapPin } from "lucide-react";
 import { addMonths, lastMonthBefore } from "@/data/repository";
 import { recurringMonths } from "@/lib/finance";
 import { fmtEur } from "@/lib/format";
@@ -126,6 +129,12 @@ export function TripFormDialog({ open, onOpenChange, trip }: TripFormProps) {
     lng: PISA.lng,
     notes: "",
   });
+  /** Nome do lugar escolhido no mapa; null = ainda não foi localizado */
+  const [place, setPlace] = useState<string | null>(null);
+  const [manualCoords, setManualCoords] = useState(false);
+  const [locating, setLocating] = useState(false);
+  /** O lugar veio da primeira cidade (e não de uma pesquisa): muda se as cidades mudarem */
+  const [autoPlaced, setAutoPlaced] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -142,15 +151,52 @@ export function TripFormDialog({ open, onOpenChange, trip }: TripFormProps) {
         lng: trip.lng,
         notes: trip.notes ?? "",
       });
+      setPlace(trip.cities[0] ?? trip.name);
     } else {
-      setForm((f) => ({ ...f, name: "", cities: "", notes: "", participants: people.map((p) => p.id) }));
+      setForm((f) => ({
+        ...f,
+        name: "",
+        cities: "",
+        notes: "",
+        lat: PISA.lat,
+        lng: PISA.lng,
+        participants: people.map((p) => p.id),
+      }));
+      setPlace(null);
     }
+    setManualCoords(false);
+    setAutoPlaced(false);
   }, [open, trip, people]);
+
+  const choosePlace = (p: Place) => {
+    setForm((f) => ({ ...f, lat: p.lat, lng: p.lng, cities: f.cities.trim() ? f.cities : p.name }));
+    setPlace(p.label);
+    setAutoPlaced(false);
+  };
+
+  /** Localiza a primeira cidade escrita, se ainda não houver lugar escolhido. */
+  const locateFirstCity = async (): Promise<{ lat: number; lng: number } | null> => {
+    const first = form.cities.split(",")[0]?.trim();
+    if (!first) return null;
+    setLocating(true);
+    try {
+      const [hit] = await searchPlaces(first);
+      if (!hit) return null;
+      setForm((f) => ({ ...f, lat: hit.lat, lng: hit.lng }));
+      setPlace(hit.label);
+      setAutoPlaced(true);
+      return hit;
+    } catch {
+      return null;
+    } finally {
+      setLocating(false);
+    }
+  };
 
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) {
       toast.error("Dá um nome à viagem.");
@@ -164,6 +210,12 @@ export function TripFormDialog({ open, onOpenChange, trip }: TripFormProps) {
       toast.error("Escolhe pelo menos uma pessoa.");
       return;
     }
+    let coords = { lat: Number(form.lat), lng: Number(form.lng) };
+    if (place === null && !manualCoords) {
+      const found = await locateFirstCity();
+      if (found) coords = found;
+      else toast.warning("Não encontrei a cidade no mapa — a viagem fica marcada em Pisa até a localizares.");
+    }
     const payload = {
       name: form.name.trim(),
       cities: form.cities.split(",").map((c) => c.trim()).filter(Boolean),
@@ -172,8 +224,8 @@ export function TripFormDialog({ open, onOpenChange, trip }: TripFormProps) {
       budgetPerPerson: Number(form.budgetPerPerson) || 0,
       participants: form.participants,
       status: form.status,
-      lat: Number(form.lat),
-      lng: Number(form.lng),
+      lat: coords.lat,
+      lng: coords.lng,
       ...(form.notes.trim() ? { notes: form.notes.trim() } : {}),
     };
     if (trip) {
@@ -195,19 +247,34 @@ export function TripFormDialog({ open, onOpenChange, trip }: TripFormProps) {
           </DialogTitle>
           <DialogDescription>Orçamento por pessoa, em euros.</DialogDescription>
         </DialogHeader>
-        <form onSubmit={submit} className="space-y-4">
+        <form onSubmit={submit} className="min-w-0 space-y-4">
           <Field label="Nome">
             <Input value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Ex.: Roma" />
           </Field>
           <Field label="Cidades" hint="Separadas por vírgulas.">
-            <Input value={form.cities} onChange={(e) => set("cities", e.target.value)} placeholder="Roma, Tivoli" />
+            <Input
+              value={form.cities}
+              onChange={(e) => {
+                set("cities", e.target.value);
+                if (autoPlaced) setPlace(null);
+              }}
+              onBlur={() => {
+                if (place === null && !manualCoords) void locateFirstCity();
+              }}
+              placeholder="Roma, Tivoli"
+            />
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Início">
-              <Input type="date" value={form.startDate} onChange={(e) => set("startDate", e.target.value)} />
+              <DatePicker
+                semester
+                aria-label="Início"
+                value={form.startDate}
+                onChange={(v) => setForm((f) => ({ ...f, startDate: v, endDate: f.endDate < v ? v : f.endDate }))}
+              />
             </Field>
             <Field label="Fim">
-              <Input type="date" value={form.endDate} onChange={(e) => set("endDate", e.target.value)} />
+              <DatePicker semester aria-label="Fim" min={form.startDate} value={form.endDate} onChange={(v) => set("endDate", v)} />
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -227,14 +294,54 @@ export function TripFormDialog({ open, onOpenChange, trip }: TripFormProps) {
           <Field label="Quem vai">
             <PeoplePicker value={form.participants} onChange={(v) => set("participants", v)} />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Latitude">
-              <Input type="number" step="0.0001" value={form.lat} onChange={(e) => set("lat", Number(e.target.value))} />
-            </Field>
-            <Field label="Longitude">
-              <Input type="number" step="0.0001" value={form.lng} onChange={(e) => set("lng", Number(e.target.value))} />
-            </Field>
-          </div>
+          <Field label="No mapa">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2.5 rounded-lg border bg-muted/40 px-3 py-2 text-sm">
+                {locating ? (
+                  <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />
+                ) : (
+                  <MapPin className={cn("size-4 shrink-0", place ? "text-primary" : "text-muted-foreground")} />
+                )}
+                <span className={cn("min-w-0 flex-1 truncate", !place && "text-muted-foreground")}>
+                  {locating
+                    ? "A localizar…"
+                    : place ?? (manualCoords ? "Coordenadas à mão" : "Vai para a primeira cidade")}
+                </span>
+                <button
+                  type="button"
+                  className="shrink-0 cursor-pointer text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => setManualCoords((m) => !m)}
+                >
+                  {manualCoords ? "Esconder coordenadas" : "Coordenadas"}
+                </button>
+              </div>
+              <PlaceSearch onSelect={choosePlace} placeholder="Outro lugar? Procura aqui…" />
+              {manualCoords && (
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    type="number"
+                    step="0.0001"
+                    aria-label="Latitude"
+                    value={form.lat}
+                    onChange={(e) => {
+                      set("lat", Number(e.target.value));
+                      setPlace(null);
+                    }}
+                  />
+                  <Input
+                    type="number"
+                    step="0.0001"
+                    aria-label="Longitude"
+                    value={form.lng}
+                    onChange={(e) => {
+                      set("lng", Number(e.target.value));
+                      setPlace(null);
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          </Field>
           <Field label="Notas">
             <Textarea rows={2} value={form.notes} onChange={(e) => set("notes", e.target.value)} />
           </Field>
@@ -363,7 +470,7 @@ export function ExpenseFormDialog({ open, onOpenChange, expense, defaultTripId =
               <Input inputMode="decimal" value={form.amount} onChange={(e) => set("amount", e.target.value)} placeholder="0,00" />
             </Field>
             <Field label="Data">
-              <Input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} />
+              <DatePicker aria-label="Data" value={form.date} onChange={(v) => set("date", v)} />
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -506,7 +613,7 @@ export function SavingsFormDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="font-display text-2xl">
-            {editing ? "Editar depósito mensal" : "Registar poupança"}
+            {editing ? "Editar depósito mensal" : form.kind === "mensal" ? "Novo depósito mensal" : "Valor único"}
           </DialogTitle>
           <DialogDescription>
             {form.kind === "mensal"
@@ -515,23 +622,6 @@ export function SavingsFormDialog({
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
-          {!editing && (
-            <div className="grid grid-cols-2 gap-1 rounded-lg border p-1">
-              {(["extra", "mensal"] as const).map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => setForm((f) => ({ ...f, kind: k }))}
-                  className={cn(
-                    "cursor-pointer rounded-md py-1.5 text-sm font-medium",
-                    form.kind === k ? "bg-primary text-primary-foreground" : "text-muted-foreground",
-                  )}
-                >
-                  {k === "extra" ? "Valor único" : "Depósito mensal"}
-                </button>
-              ))}
-            </div>
-          )}
           {form.kind === "mensal" ? (
             <>
               <Field label="Valor por mês">
@@ -575,7 +665,7 @@ export function SavingsFormDialog({
                 />
               </Field>
               <Field label="Data">
-                <Input type="date" value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} />
+                <DatePicker aria-label="Data" value={form.date} onChange={(v) => setForm((f) => ({ ...f, date: v }))} />
               </Field>
             </div>
           )}
