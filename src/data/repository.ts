@@ -19,6 +19,7 @@ export interface DataRepository {
 export function migrate(d: AppData): AppData {
   const out = { ...d } as AppData;
   if (!out.monthlyPlan) out.monthlyPlan = {};
+  if (!out.autoSavings) out.autoSavings = {};
   if (!out.bookings)
     out.bookings = out.trips.flatMap((t) => defaultBookings(t, (i) => `b-${t.id}-${i}`));
   out.savings = out.savings.map((s) => (s.kind ? s : { ...s, kind: "extra" }));
@@ -41,7 +42,7 @@ export class LocalStorageRepository implements DataRepository {
       }
       const parsed = JSON.parse(raw) as AppData;
       if (parsed.version !== 1) return createSeedData();
-      return migrate(parsed);
+      return applyAutoSavings(migrate(parsed));
     } catch {
       return createSeedData();
     }
@@ -71,3 +72,38 @@ export class LocalStorageRepository implements DataRepository {
 }
 
 export const repository: DataRepository = new LocalStorageRepository();
+
+const nextMonth = (ym: string) => {
+  const [y, m] = ym.split("-").map(Number) as [number, number];
+  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+};
+
+/** Cria os depósitos automáticos em falta até ao mês atual (inclusive). */
+export function applyAutoSavings(d: AppData, now = new Date()): AppData {
+  const current = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  let changed = false;
+  const savings = [...d.savings];
+  const auto = { ...d.autoSavings };
+  for (const [pid, cfg] of Object.entries(d.autoSavings ?? {})) {
+    const amount = d.monthlyPlan[pid] ?? 0;
+    if (amount <= 0) continue;
+    let m = cfg.lastMonth ? nextMonth(cfg.lastMonth) : cfg.startMonth;
+    let last = cfg.lastMonth;
+    while (m <= current) {
+      savings.push({
+        id: `auto-${pid}-${m}`,
+        personId: pid,
+        amount,
+        date: `${m}-01`,
+        kind: "mensal",
+        month: m,
+        note: "Automático",
+      });
+      last = m;
+      m = nextMonth(m);
+      changed = true;
+    }
+    auto[pid] = { ...cfg, lastMonth: last };
+  }
+  return changed ? { ...d, savings, autoSavings: auto } : d;
+}

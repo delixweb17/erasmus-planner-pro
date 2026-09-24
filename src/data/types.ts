@@ -91,6 +91,8 @@ export interface AppData {
   bookings: Booking[];
   /** Valor mensal planeado por pessoa */
   monthlyPlan: Record<PersonId, number>;
+  /** Depósito automático: a partir de `startMonth` entra `monthlyPlan` todos os meses */
+  autoSavings: Record<PersonId, { startMonth: string; lastMonth: string | null }>;
   savingsGoal: number;
   savingsDeadline: string;
 }
