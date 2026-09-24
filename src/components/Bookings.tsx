@@ -149,7 +149,7 @@ function BookingFormDialog({ open, onOpenChange, trip, booking }: { open: boolea
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!f.title.trim()) return toast.error("Dá um nome à reserva.");
+    if (!f.title.trim()) { toast.error("Dá um nome à reserva."); return; }
     const payload: Omit<Booking, "id"> = {
       tripId: trip.id,
       category: f.category,
