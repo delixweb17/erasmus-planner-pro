@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/AppShell";
 import { BudgetBar, EmptyState, Loaded, PersonAvatar, Section, Stat } from "@/components/bits";
 import { ProfilePicker, SavingsFormDialog, monthLabel } from "@/components/forms";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { useData, useStore } from "@/data/store";
 import { requiredPerMonth, savedInMonth, savingsByPerson, totalBudgetPerPerson } from "@/lib/finance";
@@ -27,7 +28,7 @@ export const Route = createFileRoute("/poupanca")({
 function SavingsPage() {
   const data = useData();
   const { people, savings: entries, savingsGoal, savingsDeadline, trips, monthlyPlan } = data;
-  const { removeSavings, activeProfile, setActiveProfile, setMonthlyPlan } = useStore();
+  const { removeSavings, activeProfile, setActiveProfile, setMonthlyPlan, setAutoSavings } = useStore();
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<"mensal" | "extra">("mensal");
 
@@ -89,6 +90,7 @@ function SavingsPage() {
   const thisMonth = today.slice(0, 7);
   const thisMonthSaved = savedInMonth(data, me.id, thisMonth);
   const plan = monthlyPlan[me.id] ?? 0;
+  const auto = data.autoSavings[me.id];
   const history = entries.filter((e) => e.personId === me.id).sort((a, b) => b.date.localeCompare(a.date));
 
   return (
@@ -115,25 +117,35 @@ function SavingsPage() {
 
       <div className="mt-4 card-soft p-5">
         <BudgetBar ratio={savingsGoal > 0 ? mine / savingsGoal : 0} className="[&>div]:bg-success" />
-        <div className="mt-4 flex flex-wrap items-end gap-3">
+        <div className="mt-4 flex flex-wrap items-end gap-4">
           <div className="space-y-1.5">
-            <p className="text-xs font-semibold text-muted-foreground">O teu depósito mensal planeado (€)</p>
+            <p className="text-xs font-semibold text-muted-foreground">Depósito mensal (€)</p>
             <Input
               type="number"
               min={0}
               step={10}
-              className="w-40"
+              className="w-32"
               value={plan || ""}
               placeholder={String(Math.ceil(perMonth))}
               onChange={(e) => setMonthlyPlan(me.id, Number(e.target.value) || 0)}
             />
           </div>
-          <p className="pb-2 text-xs text-muted-foreground">
-            {plan > 0
-              ? plan >= perMonth
+          <label className="flex cursor-pointer items-center gap-2 pb-2 text-sm">
+            <Switch
+              checked={!!auto}
+              disabled={plan <= 0}
+              onCheckedChange={(on) => setAutoSavings(me.id, on ? thisMonth : null)}
+            />
+            Entra sozinho todos os meses
+          </label>
+          <p className="basis-full text-xs text-muted-foreground">
+            {auto
+              ? `Desde ${monthLabel(auto.startMonth)}, entram ${fmtEur(plan)} no dia 1 de cada mês sem teres de registar. `
+              : "Liga para não teres de registar o mesmo valor todos os meses. "}
+            {plan > 0 &&
+              (plan >= perMonth
                 ? `Com ${fmtEur(plan)}/mês chegas à meta a tempo.`
-                : `Com ${fmtEur(plan)}/mês ficas ${fmtEur(perMonth - plan)}/mês abaixo do necessário.`
-              : "Define quanto pões de lado todos os meses; fica pré-preenchido ao registar."}
+                : `Com ${fmtEur(plan)}/mês ficas ${fmtEur(perMonth - plan)}/mês abaixo do necessário.`)}
           </p>
           <Button variant="outline" size="sm" className="ml-auto" onClick={() => { setKind("extra"); setOpen(true); }}>
             <Plus /> Extra

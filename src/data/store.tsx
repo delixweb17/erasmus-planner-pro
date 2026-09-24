@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import type { AppData, Booking, Expense, Person, SavingsEntry, Settlement, Trip } from "./types";
-import { migrate, repository } from "./repository";
+import { applyAutoSavings, migrate, repository } from "./repository";
 import { defaultBookings } from "./seed";
 
 export const newId = () =>
@@ -31,6 +31,7 @@ interface StoreActions {
   removeSettlement: (id: string) => void;
   setSavingsGoal: (goal: number) => void;
   setMonthlyPlan: (personId: string, amount: number) => void;
+  setAutoSavings: (personId: string, startMonth: string | null) => void;
   addBooking: (b: Omit<Booking, "id">) => void;
   updateBooking: (id: string, patch: Partial<Booking>) => void;
   removeBooking: (id: string) => void;
@@ -116,6 +117,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setSavingsGoal: (goal) => mutate((d) => ({ ...d, savingsGoal: goal })),
       setMonthlyPlan: (personId, amount) =>
         mutate((d) => ({ ...d, monthlyPlan: { ...d.monthlyPlan, [personId]: amount } })),
+      setAutoSavings: (personId, startMonth) =>
+        mutate((d) => {
+          const auto = { ...d.autoSavings };
+          if (startMonth) auto[personId] = { startMonth, lastMonth: null };
+          else delete auto[personId];
+          return applyAutoSavings({ ...d, autoSavings: auto });
+        }),
       addBooking: (b) => mutate((d) => ({ ...d, bookings: [...d.bookings, { ...b, id: newId() }] })),
       updateBooking: (id, patch) =>
         mutate((d) => ({ ...d, bookings: d.bookings.map((b) => (b.id === id ? { ...b, ...patch } : b)) })),
@@ -124,7 +132,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         repository.setActiveProfile(id);
         setActive(id);
       },
-      importData: (imported) => setData(migrate(imported)),
+      importData: (imported) => setData(applyAutoSavings(migrate(imported))),
       resetData: async () => {
         const seed = await repository.reset();
         setData(seed);

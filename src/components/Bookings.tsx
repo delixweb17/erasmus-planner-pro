@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Field, selectClass } from "@/components/forms";
+import { Choice, Field } from "@/components/forms";
 import { BudgetBar, PersonAvatar, Section } from "@/components/bits";
 import { useData, useStore } from "@/data/store";
 import type { Booking, BookingCategory, BookingStatus, Trip } from "@/data/types";
@@ -183,14 +183,10 @@ function BookingFormDialog({ open, onOpenChange, trip, booking }: { open: boolea
         <form onSubmit={submit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <Field label="Tipo">
-              <select className={selectClass} value={f.category} onChange={(e) => set("category", e.target.value as BookingCategory)}>
-                {(Object.keys(BOOKING_CATEGORY) as BookingCategory[]).map((c) => <option key={c} value={c}>{BOOKING_CATEGORY[c]}</option>)}
-              </select>
+              <Choice value={f.category} onChange={(v) => set("category", v as BookingCategory)} options={(Object.keys(BOOKING_CATEGORY) as BookingCategory[]).map((c) => ({ value: c, label: BOOKING_CATEGORY[c] }))} />
             </Field>
             <Field label="Estado">
-              <select className={selectClass} value={f.status} onChange={(e) => set("status", e.target.value as BookingStatus)}>
-                {(Object.keys(BOOKING_STATUS) as BookingStatus[]).map((c) => <option key={c} value={c}>{BOOKING_STATUS[c]}</option>)}
-              </select>
+              <Choice value={f.status} onChange={(v) => set("status", v as BookingStatus)} options={(Object.keys(BOOKING_STATUS) as BookingStatus[]).map((c) => ({ value: c, label: BOOKING_STATUS[c] }))} />
             </Field>
           </div>
           <Field label="Nome">
@@ -206,10 +202,7 @@ function BookingFormDialog({ open, onOpenChange, trip, booking }: { open: boolea
             <Field label="Custo real (€)"><Input inputMode="decimal" value={f.actual} onChange={(e) => set("actual", e.target.value)} /></Field>
           </div>
           <Field label="Quem trata">
-            <select className={selectClass} value={f.responsible} onChange={(e) => set("responsible", e.target.value)}>
-              <option value="">Ninguém ainda</option>
-              {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
+            <Choice value={f.responsible} onChange={(v) => set("responsible", v)} options={[{ value: "", label: "Ninguém ainda" }, ...people.map((p) => ({ value: p.id, label: p.name }))]} />
           </Field>
           <Field label="Notas"><Textarea rows={2} value={f.notes} onChange={(e) => set("notes", e.target.value)} /></Field>
           <DialogFooter>

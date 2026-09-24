@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useData, useStore } from "@/data/store";
 import type { Expense, ExpenseCategory, Trip, TripStatus } from "@/data/types";
 import { STATUS_LABEL, PersonAvatar } from "@/components/bits";
@@ -68,6 +69,34 @@ export function PeoplePicker({
         );
       })}
     </div>
+  );
+}
+
+const NONE = "__none__";
+
+/** Lista de escolha com o estilo da app (substitui o <select> nativo). */
+export function Choice({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <Select value={value === "" ? NONE : value} onValueChange={(v) => onChange(v === NONE ? "" : v)}>
+      <SelectTrigger className="w-full">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((o) => (
+          <SelectItem key={o.value || NONE} value={o.value || NONE}>
+            {o.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -189,13 +218,7 @@ export function TripFormDialog({ open, onOpenChange, trip }: TripFormProps) {
               />
             </Field>
             <Field label="Estado">
-              <select className={selectClass} value={form.status} onChange={(e) => set("status", e.target.value as TripStatus)}>
-                {(Object.keys(STATUS_LABEL) as TripStatus[]).map((s) => (
-                  <option key={s} value={s}>
-                    {STATUS_LABEL[s]}
-                  </option>
-                ))}
-              </select>
+              <Choice value={form.status} onChange={(v) => set("status", v as TripStatus)} options={(Object.keys(STATUS_LABEL) as TripStatus[]).map((s) => ({ value: s, label: STATUS_LABEL[s] }))} />
             </Field>
           </div>
           <Field label="Quem vai">
@@ -342,33 +365,14 @@ export function ExpenseFormDialog({ open, onOpenChange, expense, defaultTripId =
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Viagem">
-              <select className={selectClass} value={form.tripId} onChange={(e) => onTripChange(e.target.value)}>
-                <option value="">Sem viagem (geral)</option>
-                {trips.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
+              <Choice value={form.tripId} onChange={(v) => onTripChange(v)} options={[{ value: "", label: "Sem viagem (geral)" }, ...trips.map((t) => ({ value: t.id, label: t.name }))]} />
             </Field>
             <Field label="Categoria">
-              <select className={selectClass} value={form.category} onChange={(e) => set("category", e.target.value as ExpenseCategory)}>
-                {(Object.keys(CATEGORY_LABEL) as ExpenseCategory[]).map((c) => (
-                  <option key={c} value={c}>
-                    {CATEGORY_LABEL[c]}
-                  </option>
-                ))}
-              </select>
+              <Choice value={form.category} onChange={(v) => set("category", v as ExpenseCategory)} options={(Object.keys(CATEGORY_LABEL) as ExpenseCategory[]).map((c) => ({ value: c, label: CATEGORY_LABEL[c] }))} />
             </Field>
           </div>
           <Field label="Quem pagou">
-            <select className={selectClass} value={form.paidBy} onChange={(e) => set("paidBy", e.target.value)}>
-              {people.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+            <Choice value={form.paidBy} onChange={(v) => set("paidBy", v)} options={people.map((p) => ({ value: p.id, label: p.name }))} />
           </Field>
           <Field label="Dividir entre">
             <PeoplePicker value={form.splitBetween} onChange={(v) => set("splitBetween", v)} />
