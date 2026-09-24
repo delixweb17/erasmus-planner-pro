@@ -4,7 +4,7 @@ import { useStore } from "@/data/store";
 import { PERIOD_LABEL, tripConflicts, tripPeriods, type PeriodKind } from "@/lib/semester";
 import { initials, pct } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Minus, Plus } from "lucide-react";
 
 /* ---------- Pessoas ---------- */
 
@@ -234,4 +234,59 @@ export function Loaded({ children }: { children: (ready: true) => ReactNode }) {
     );
   }
   return <>{children(true)}</>;
+}
+
+/* ---------- Campo numérico com − / + ---------- */
+
+export function NumberStepper({
+  value,
+  onChange,
+  step = 1,
+  min = 0,
+  placeholder,
+  unit,
+  className,
+  "aria-label": ariaLabel,
+}: {
+  value: number;
+  onChange: (value: number) => void;
+  step?: number;
+  min?: number;
+  placeholder?: string;
+  unit?: string;
+  className?: string;
+  "aria-label"?: string;
+}) {
+  const change = (delta: number) => onChange(Math.max(min, (value || 0) + delta));
+  const btn =
+    "flex h-full w-9 shrink-0 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-3.5";
+  return (
+    <div
+      className={cn(
+        "flex h-9 items-stretch overflow-hidden rounded-md border border-input bg-transparent shadow-sm transition-colors focus-within:ring-1 focus-within:ring-ring",
+        className,
+      )}
+    >
+      <button type="button" className={cn(btn, "border-r border-input")} onClick={() => change(-step)} disabled={(value || 0) <= min} aria-label="Diminuir">
+        <Minus />
+      </button>
+      <div className="flex min-w-0 flex-1 items-center justify-center gap-1 px-2">
+        <input
+          type="number"
+          inputMode="decimal"
+          min={min}
+          step={step}
+          aria-label={ariaLabel}
+          value={value || ""}
+          placeholder={placeholder}
+          onChange={(e) => onChange(Math.max(min, Number(e.target.value) || 0))}
+          className="w-full min-w-0 bg-transparent text-center text-sm font-semibold tabular-nums outline-none placeholder:font-normal placeholder:text-muted-foreground [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        />
+        {unit && <span className="text-sm text-muted-foreground">{unit}</span>}
+      </div>
+      <button type="button" className={cn(btn, "border-l border-input")} onClick={() => change(step)} aria-label="Aumentar">
+        <Plus />
+      </button>
+    </div>
+  );
 }

@@ -2,9 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { PageHeader } from "@/components/AppShell";
-import { BudgetBar, EmptyState, Loaded, PersonAvatar, Section, Stat } from "@/components/bits";
+import { BudgetBar, EmptyState, Loaded, NumberStepper, PersonAvatar, Section, Stat } from "@/components/bits";
 import { ProfilePicker, SavingsFormDialog, monthLabel } from "@/components/forms";
-import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { useData, useStore } from "@/data/store";
@@ -119,15 +118,15 @@ function SavingsPage() {
         <BudgetBar ratio={savingsGoal > 0 ? mine / savingsGoal : 0} className="[&>div]:bg-success" />
         <div className="mt-4 flex flex-wrap items-end gap-4">
           <div className="space-y-1.5">
-            <p className="text-xs font-semibold text-muted-foreground">Depósito mensal (€)</p>
-            <Input
-              type="number"
-              min={0}
+            <p className="text-xs font-semibold text-muted-foreground">Depósito mensal</p>
+            <NumberStepper
               step={10}
-              className="w-32"
-              value={plan || ""}
+              unit="€"
+              className="w-40"
+              aria-label="Depósito mensal"
+              value={plan}
               placeholder={String(Math.ceil(perMonth))}
-              onChange={(e) => setMonthlyPlan(me.id, Number(e.target.value) || 0)}
+              onChange={(v) => setMonthlyPlan(me.id, v)}
             />
           </div>
           <label className="flex cursor-pointer items-center gap-2 pb-2 text-sm">
