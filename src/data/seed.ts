@@ -65,8 +65,7 @@ export function createSeedData(): AppData {
     savings: [],
     settlements: [],
     bookings: [],
-    monthlyPlan: {},
-    autoSavings: {},
+    recurring: [],
     savingsGoal: 3000,
     savingsDeadline: "2027-09-01",
   };

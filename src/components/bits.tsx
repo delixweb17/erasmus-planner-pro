@@ -164,12 +164,14 @@ export function Stat({
   hint,
   className,
   tone,
+  children,
 }: {
   label: string;
   value: ReactNode;
   hint?: ReactNode;
   className?: string | undefined;
   tone?: "default" | "primary";
+  children?: ReactNode;
 }) {
   return (
     <div className={cn("card-soft p-5", tone === "primary" && "bg-primary text-primary-foreground border-primary", className)}>
@@ -180,6 +182,7 @@ export function Stat({
           {hint}
         </p>
       )}
+      {children}
     </div>
   );
 }

@@ -15,16 +15,56 @@ export interface DataRepository {
   setActiveProfile(id: string | null): void;
 }
 
+/** Formato antigo: valor mensal + interruptor "entra sozinho", com as entradas gravadas uma a uma. */
+type LegacyFields = {
+  monthlyPlan?: Record<string, number>;
+  autoSavings?: Record<string, { startMonth: string; lastMonth: string | null }>;
+};
+
 /** Garante campos novos em dados guardados antes de existirem. */
 export function migrate(d: AppData): AppData {
-  const out = { ...d } as AppData;
-  if (!out.monthlyPlan) out.monthlyPlan = {};
-  if (!out.autoSavings) out.autoSavings = {};
+  const { monthlyPlan, autoSavings, ...rest } = d as AppData & LegacyFields;
+  const out = { ...rest } as AppData;
   if (!out.bookings)
     out.bookings = out.trips.flatMap((t) => defaultBookings(t, (i) => `b-${t.id}-${i}`));
-  out.savings = out.savings.map((s) => (s.kind ? s : { ...s, kind: "extra" }));
+  if (!out.recurring) out.recurring = [];
+
+  // Remove entradas repetidas (o interruptor antigo gravava o mesmo mês várias vezes).
+  const seen = new Set<string>();
+  out.savings = out.savings
+    .filter((s) => (seen.has(s.id) ? false : (seen.add(s.id), true)))
+    .map((s) => (s.kind ? s : { ...s, kind: "extra" }));
+
+  // Depósitos automáticos antigos passam a depósitos mensais até ao prazo da meta.
+  for (const [pid, cfg] of Object.entries(autoSavings ?? {})) {
+    const amount = monthlyPlan?.[pid] ?? 0;
+    if (amount <= 0) continue;
+    out.savings = out.savings.filter((s) => !(s.personId === pid && s.id.startsWith("auto-")));
+    out.recurring.push({
+      id: `rec-${pid}-${cfg.startMonth}`,
+      personId: pid,
+      amount,
+      startMonth: cfg.startMonth,
+      endMonth: lastMonthBefore(out.savingsDeadline),
+    });
+  }
   return out;
 }
+
+export const monthOf = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+
+export const addMonths = (ym: string, n: number) => {
+  const [y, m] = ym.split("-").map(Number) as [number, number];
+  const i = y * 12 + (m - 1) + n;
+  return `${Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, "0")}`;
+};
+
+/** Último mês cujo depósito (dia 1) ainda conta para um prazo. */
+export const lastMonthBefore = (deadlineISO: string) => {
+  const m = deadlineISO.slice(0, 7);
+  return deadlineISO.slice(8, 10) === "01" ? addMonths(m, -1) : m;
+};
 
 const PROFILE_KEY = "erasmus-pisa:profile";
 
@@ -42,7 +82,7 @@ export class LocalStorageRepository implements DataRepository {
       }
       const parsed = JSON.parse(raw) as AppData;
       if (parsed.version !== 1) return createSeedData();
-      return applyAutoSavings(migrate(parsed));
+      return migrate(parsed);
     } catch {
       return createSeedData();
     }
@@ -72,38 +112,3 @@ export class LocalStorageRepository implements DataRepository {
 }
 
 export const repository: DataRepository = new LocalStorageRepository();
-
-const nextMonth = (ym: string) => {
-  const [y, m] = ym.split("-").map(Number) as [number, number];
-  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
-};
-
-/** Cria os depósitos automáticos em falta até ao mês atual (inclusive). */
-export function applyAutoSavings(d: AppData, now = new Date()): AppData {
-  const current = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  let changed = false;
-  const savings = [...d.savings];
-  const auto = { ...d.autoSavings };
-  for (const [pid, cfg] of Object.entries(d.autoSavings ?? {})) {
-    const amount = d.monthlyPlan[pid] ?? 0;
-    if (amount <= 0) continue;
-    let m = cfg.lastMonth ? nextMonth(cfg.lastMonth) : cfg.startMonth;
-    let last = cfg.lastMonth;
-    while (m <= current) {
-      savings.push({
-        id: `auto-${pid}-${m}`,
-        personId: pid,
-        amount,
-        date: `${m}-01`,
-        kind: "mensal",
-        month: m,
-        note: "Automático",
-      });
-      last = m;
-      m = nextMonth(m);
-      changed = true;
-    }
-    auto[pid] = { ...cfg, lastMonth: last };
-  }
-  return changed ? { ...d, savings, autoSavings: auto } : d;
-}

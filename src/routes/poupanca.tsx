@@ -1,13 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Repeat, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { PageHeader } from "@/components/AppShell";
-import { BudgetBar, EmptyState, Loaded, NumberStepper, PersonAvatar, Section, Stat } from "@/components/bits";
+import { BudgetBar, EmptyState, Loaded, PersonAvatar, Section, Stat } from "@/components/bits";
 import { ProfilePicker, SavingsFormDialog, monthLabel } from "@/components/forms";
-import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { useData, useStore } from "@/data/store";
-import { requiredPerMonth, savedInMonth, savingsByPerson, totalBudgetPerPerson } from "@/lib/finance";
+import {
+  allSavings,
+  recurringMonths,
+  requiredPerMonth,
+  savedInMonth,
+  savingsByPerson,
+  totalBudgetPerPerson,
+  upcomingRecurring,
+} from "@/lib/finance";
+import type { RecurringSaving } from "@/data/types";
 import { fmtEur, fmtEurCents, fmtLong, fmtShort } from "@/lib/format";
 import { daysBetween, todayISO } from "@/lib/semester";
 import { cn } from "@/lib/utils";
@@ -26,10 +34,16 @@ export const Route = createFileRoute("/poupanca")({
 
 function SavingsPage() {
   const data = useData();
-  const { people, savings: entries, savingsGoal, savingsDeadline, trips, monthlyPlan } = data;
-  const { removeSavings, activeProfile, setActiveProfile, setMonthlyPlan, setAutoSavings } = useStore();
+  const { people, savingsGoal, savingsDeadline, trips } = data;
+  const { removeSavings, removeRecurring, activeProfile, setActiveProfile } = useStore();
   const [open, setOpen] = useState(false);
-  const [kind, setKind] = useState<"mensal" | "extra">("mensal");
+  const [kind, setKind] = useState<"mensal" | "extra">("extra");
+  const [editing, setEditing] = useState<RecurringSaving | null>(null);
+  const openDialog = (k: "mensal" | "extra", r: RecurringSaving | null = null) => {
+    setKind(k);
+    setEditing(r);
+    setOpen(true);
+  };
 
   const me = people.find((p) => p.id === activeProfile);
   const today = todayISO();
@@ -50,8 +64,8 @@ function SavingsPage() {
       }
       actions={
         me && (
-          <Button onClick={() => { setKind("mensal"); setOpen(true); }}>
-            <Plus /> Registar mês
+          <Button onClick={() => openDialog("extra")}>
+            <Plus /> Registar poupança
           </Button>
         )
       }
@@ -88,9 +102,13 @@ function SavingsPage() {
   const perMonth = requiredPerMonth(mine, savingsGoal, today, savingsDeadline);
   const thisMonth = today.slice(0, 7);
   const thisMonthSaved = savedInMonth(data, me.id, thisMonth);
-  const plan = monthlyPlan[me.id] ?? 0;
-  const auto = data.autoSavings[me.id];
-  const history = entries.filter((e) => e.personId === me.id).sort((a, b) => b.date.localeCompare(a.date));
+  const plans = data.recurring
+    .filter((r) => r.personId === me.id)
+    .sort((a, b) => a.startMonth.localeCompare(b.startMonth));
+  const projected = mine + upcomingRecurring(data, me.id);
+  const history = allSavings(data)
+    .filter((e) => e.personId === me.id)
+    .sort((a, b) => b.date.localeCompare(a.date));
 
   return (
     <>
@@ -105,7 +123,18 @@ function SavingsPage() {
       </div>
 
       <div className="fade-up grid gap-4 sm:grid-cols-3">
-        <Stat tone="primary" label="A tua poupança" value={fmtEur(mine)} hint={remaining > 0 ? `Faltam ${fmtEur(remaining)}` : "Meta atingida"} />
+        <Stat
+          tone="primary"
+          label="A tua poupança"
+          value={fmtEur(mine)}
+          hint={remaining > 0 ? `Faltam ${fmtEur(remaining)} para os ${fmtEur(savingsGoal)}` : "Meta atingida"}
+        >
+          <BudgetBar
+            ratio={savingsGoal > 0 ? mine / savingsGoal : 0}
+            thin
+            className="mt-3 bg-primary-foreground/20 [&>div]:bg-primary-foreground"
+          />
+        </Stat>
         <Stat label="Precisas por mês" value={remaining > 0 ? fmtEur(perMonth) : "—"} hint="para chegar a tempo" />
         <Stat
           label={`Este mês (${monthLabel(thisMonth)})`}
@@ -114,47 +143,98 @@ function SavingsPage() {
         />
       </div>
 
-      <div className="mt-4 card-soft p-5">
-        <BudgetBar ratio={savingsGoal > 0 ? mine / savingsGoal : 0} className="[&>div]:bg-success" />
-        <div className="mt-4 flex flex-wrap items-end gap-4">
-          <div className="space-y-1.5">
-            <p className="text-xs font-semibold text-muted-foreground">Depósito mensal</p>
-            <NumberStepper
-              step={10}
-              unit="€"
-              className="w-40"
-              aria-label="Depósito mensal"
-              value={plan}
-              placeholder={String(Math.ceil(perMonth))}
-              onChange={(v) => setMonthlyPlan(me.id, v)}
-            />
+      <Section
+        title="Depósitos mensais"
+        className="mt-10"
+        action={
+          plans.length > 0 && (
+            <Button variant="outline" size="sm" onClick={() => openDialog("mensal")}>
+              <Plus /> Novo
+            </Button>
+          )
+        }
+      >
+        {plans.length === 0 ? (
+          <EmptyState
+            title="Sem depósitos mensais."
+            hint="Escolhe um valor e um período: entra sozinho no dia 1 de cada mês, sem teres de registar."
+            action={
+              <Button variant="outline" size="sm" onClick={() => openDialog("mensal")}>
+                <Plus /> Depósito mensal
+              </Button>
+            }
+          />
+        ) : (
+          <div className="card-soft">
+            <ul className="divide-y">
+              {plans.map((r) => {
+                const total = recurringMonths(r).length;
+                const done = recurringMonths(r, r.startMonth, thisMonth).length;
+                return (
+                  <li key={r.id} className="flex items-center gap-4 px-4 py-3 text-sm">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-full bg-success/15 text-success">
+                      <Repeat className="size-4" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold">
+                        <span className="tabular">{fmtEur(r.amount)}</span>
+                        <span className="font-normal text-muted-foreground"> por mês</span>
+                        {r.note && <span className="font-normal text-muted-foreground"> · {r.note}</span>}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {monthLabel(r.startMonth)} → {monthLabel(r.endMonth)} ·{" "}
+                        {done >= total ? "concluído" : `${done} de ${total} meses`}
+                      </p>
+                      <BudgetBar ratio={total > 0 ? done / total : 0} thin className="mt-2 max-w-60 [&>div]:bg-success" />
+                    </div>
+                    <span className="tabular hidden text-right text-xs text-muted-foreground sm:block">
+                      <span className="block text-sm font-semibold text-foreground">{fmtEur(r.amount * total)}</span>
+                      no total
+                    </span>
+                    <div className="flex shrink-0 gap-0.5">
+                      <button
+                        type="button"
+                        aria-label="Editar depósito mensal"
+                        className="cursor-pointer rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                        onClick={() => openDialog("mensal", r)}
+                      >
+                        <Pencil className="size-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Apagar depósito mensal"
+                        className="cursor-pointer rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-destructive"
+                        onClick={() => {
+                          if (
+                            done === 0 ||
+                            confirm(
+                              `Apagar este depósito mensal? Os ${fmtEur(r.amount * done)} que já entraram também saem da tua poupança. Para parar sem apagar, edita o último mês.`,
+                            )
+                          )
+                            removeRecurring(r.id);
+                        }}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="border-t px-4 py-3 text-xs text-muted-foreground">
+              Com estes depósitos chegas a {fmtShort(savingsDeadline)} com{" "}
+              <span className="font-semibold text-foreground">{fmtEur(projected)}</span>
+              {projected >= savingsGoal
+                ? " — a meta fica garantida."
+                : ` — faltam ${fmtEur(savingsGoal - projected)} para a meta.`}
+            </p>
           </div>
-          <label className="flex cursor-pointer items-center gap-2 pb-2 text-sm">
-            <Switch
-              checked={!!auto}
-              disabled={plan <= 0}
-              onCheckedChange={(on) => setAutoSavings(me.id, on ? thisMonth : null)}
-            />
-            Entra sozinho todos os meses
-          </label>
-          <p className="basis-full text-xs text-muted-foreground">
-            {auto
-              ? `Desde ${monthLabel(auto.startMonth)}, entram ${fmtEur(plan)} no dia 1 de cada mês sem teres de registar. `
-              : "Liga para não teres de registar o mesmo valor todos os meses. "}
-            {plan > 0 &&
-              (plan >= perMonth
-                ? `Com ${fmtEur(plan)}/mês chegas à meta a tempo.`
-                : `Com ${fmtEur(plan)}/mês ficas ${fmtEur(perMonth - plan)}/mês abaixo do necessário.`)}
-          </p>
-          <Button variant="outline" size="sm" className="ml-auto" onClick={() => { setKind("extra"); setOpen(true); }}>
-            <Plus /> Extra
-          </Button>
-        </div>
-      </div>
+        )}
+      </Section>
 
       <Section title="O teu histórico" className="mt-10">
         {history.length === 0 ? (
-          <EmptyState title="Ainda sem registos." hint="Regista o depósito de cada mês e os extras que forem aparecendo." />
+          <EmptyState title="Ainda sem registos." hint="Os valores únicos e os meses dos depósitos mensais aparecem aqui." />
         ) : (
           <ul className="card-soft divide-y">
             {history.map((s) => (
@@ -170,14 +250,20 @@ function SavingsPage() {
                   {s.amount > 0 ? "+" : ""}
                   {fmtEurCents(s.amount)}
                 </span>
-                <button
-                  type="button"
-                  aria-label="Apagar registo"
-                  className="cursor-pointer rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-destructive"
-                  onClick={() => removeSavings(s.id)}
-                >
-                  <Trash2 className="size-3.5" />
-                </button>
+                {s.recurringId ? (
+                  <span title="Vem de um depósito mensal" className="p-1.5 text-muted-foreground/60">
+                    <Repeat className="size-3.5" />
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    aria-label="Apagar registo"
+                    className="cursor-pointer rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-destructive"
+                    onClick={() => removeSavings(s.id)}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                )}
               </li>
             ))}
           </ul>
@@ -186,7 +272,14 @@ function SavingsPage() {
 
       {group}
 
-      <SavingsFormDialog open={open} onOpenChange={setOpen} personId={me.id} defaultKind={kind} />
+      <SavingsFormDialog
+        open={open}
+        onOpenChange={setOpen}
+        personId={me.id}
+        defaultKind={kind}
+        editing={editing}
+        suggestedAmount={perMonth}
+      />
     </>
   );
 }

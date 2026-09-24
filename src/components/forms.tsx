@@ -14,9 +14,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useData, useStore } from "@/data/store";
-import type { Expense, ExpenseCategory, Trip, TripStatus } from "@/data/types";
-import { STATUS_LABEL, PersonAvatar } from "@/components/bits";
+import type { Expense, ExpenseCategory, RecurringSaving, Trip, TripStatus } from "@/data/types";
+import { NumberStepper, STATUS_LABEL, PersonAvatar } from "@/components/bits";
 import { PISA } from "@/data/seed";
+import { addMonths, lastMonthBefore } from "@/data/repository";
+import { recurringMonths } from "@/lib/finance";
+import { fmtEur } from "@/lib/format";
 import { todayISO } from "@/lib/semester";
 import { cn } from "@/lib/utils";
 
@@ -401,100 +404,193 @@ export function SavingsFormDialog({
   open,
   onOpenChange,
   personId,
-  defaultKind = "mensal",
+  defaultKind = "extra",
+  editing,
+  suggestedAmount = 0,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   personId: string;
   defaultKind?: "mensal" | "extra";
+  /** Depósito mensal a editar */
+  editing?: RecurringSaving | null;
+  /** Valor por mês sugerido para chegar à meta */
+  suggestedAmount?: number;
 }) {
-  const { addSavings } = useStore();
+  const { addSavings, addRecurring, updateRecurring } = useStore();
   const data = useData();
-  const plan = data.monthlyPlan[personId] ?? 0;
+  const current = todayISO().slice(0, 7);
+  const deadlineMonth = lastMonthBefore(data.savingsDeadline);
   const blank = () => ({
-    kind: defaultKind,
-    amount: defaultKind === "mensal" && plan ? String(plan) : "",
+    kind: editing ? ("mensal" as const) : defaultKind,
+    amount: "",
     date: todayISO(),
-    month: todayISO().slice(0, 7),
-    note: "",
+    note: editing?.note ?? "",
+    monthly: editing?.amount ?? Math.ceil(suggestedAmount / 10) * 10,
+    startMonth: editing?.startMonth ?? current,
+    endMonth: editing?.endMonth ?? (deadlineMonth >= current ? deadlineMonth : current),
   });
   const [form, setForm] = useState(blank);
 
   useEffect(() => {
     if (open) setForm(blank());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, personId, defaultKind]);
+  }, [open, personId, defaultKind, editing]);
+
+  const firstOption = [addMonths(current, -12), editing?.startMonth ?? current].sort()[0]!;
+  const lastOption = [addMonths(deadlineMonth, 6), editing?.endMonth ?? current].sort().at(-1)!;
+  const monthOptions: string[] = [];
+  for (let m = firstOption; m <= lastOption; m = addMonths(m, 1)) monthOptions.push(m);
+
+  const months =
+    form.endMonth >= form.startMonth
+      ? recurringMonths({ id: "", personId, amount: 0, startMonth: form.startMonth, endMonth: form.endMonth }).length
+      : 0;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    const amount = Number(form.amount.replace(",", "."));
-    if (!amount) {
-      toast.error("Indica um valor.");
-      return;
+    const note = form.note.trim();
+    if (form.kind === "mensal") {
+      if (form.monthly <= 0) {
+        toast.error("Indica quanto queres pôr por mês.");
+        return;
+      }
+      if (form.endMonth < form.startMonth) {
+        toast.error("O último mês tem de ser depois do primeiro.");
+        return;
+      }
+      const r = {
+        amount: form.monthly,
+        startMonth: form.startMonth,
+        endMonth: form.endMonth,
+        ...(note ? { note } : {}),
+      };
+      if (editing) updateRecurring(editing.id, { ...r, note: note || undefined });
+      else addRecurring({ personId, ...r });
+      toast.success(editing ? "Depósito mensal atualizado." : "Depósito mensal criado.");
+    } else {
+      const amount = Number(form.amount.replace(",", "."));
+      if (!amount) {
+        toast.error("Indica um valor.");
+        return;
+      }
+      addSavings({
+        personId,
+        amount: Math.round(amount * 100) / 100,
+        date: form.date,
+        kind: "extra",
+        ...(note ? { note } : {}),
+      });
+      toast.success("Poupança registada.");
     }
-    if (
-      form.kind === "mensal" &&
-      data.savings.some((s) => s.personId === personId && s.kind === "mensal" && s.month === form.month) &&
-      !confirm(`Já registaste o depósito de ${monthLabel(form.month)}. Adicionar outro?`)
-    )
-      return;
-    addSavings({
-      personId,
-      amount: Math.round(amount * 100) / 100,
-      date: form.kind === "mensal" ? `${form.month}-01` : form.date,
-      kind: form.kind,
-      ...(form.kind === "mensal" ? { month: form.month } : {}),
-      ...(form.note.trim() ? { note: form.note.trim() } : {}),
-    });
-    toast.success("Poupança registada.");
     onOpenChange(false);
   };
+
+  const monthSelect = (value: string, onChange: (v: string) => void) => (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent className="max-h-72">
+        {monthOptions.map((m) => (
+          <SelectItem key={m} value={m}>
+            {monthLabel(m)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="font-display text-2xl">Registar poupança</DialogTitle>
-          <DialogDescription>Valores negativos retiram do mealheiro.</DialogDescription>
+          <DialogTitle className="font-display text-2xl">
+            {editing ? "Editar depósito mensal" : "Registar poupança"}
+          </DialogTitle>
+          <DialogDescription>
+            {form.kind === "mensal"
+              ? "Entra no dia 1 de cada mês, do primeiro ao último mês que escolheres."
+              : "Entra já, uma vez. Valores negativos retiram do mealheiro."}
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-1 rounded-lg border p-1">
-            {(["mensal", "extra"] as const).map((k) => (
-              <button
-                key={k}
-                type="button"
-                onClick={() => setForm((f) => ({ ...f, kind: k }))}
-                className={cn(
-                  "cursor-pointer rounded-md py-1.5 text-sm font-medium",
-                  form.kind === k ? "bg-primary text-primary-foreground" : "text-muted-foreground",
-                )}
-              >
-                {k === "mensal" ? "Depósito do mês" : "Extra pontual"}
-              </button>
-            ))}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Valor (€)">
-              <Input inputMode="decimal" value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} placeholder="250" autoFocus />
-            </Field>
-            {form.kind === "mensal" ? (
-              <Field label="Mês">
-                <Input type="month" value={form.month} onChange={(e) => setForm((f) => ({ ...f, month: e.target.value }))} />
+          {!editing && (
+            <div className="grid grid-cols-2 gap-1 rounded-lg border p-1">
+              {(["extra", "mensal"] as const).map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, kind: k }))}
+                  className={cn(
+                    "cursor-pointer rounded-md py-1.5 text-sm font-medium",
+                    form.kind === k ? "bg-primary text-primary-foreground" : "text-muted-foreground",
+                  )}
+                >
+                  {k === "extra" ? "Valor único" : "Depósito mensal"}
+                </button>
+              ))}
+            </div>
+          )}
+          {form.kind === "mensal" ? (
+            <>
+              <Field label="Valor por mês">
+                <NumberStepper
+                  step={10}
+                  unit="€"
+                  className="w-44"
+                  aria-label="Valor por mês"
+                  value={form.monthly}
+                  onChange={(v) => setForm((f) => ({ ...f, monthly: v }))}
+                />
               </Field>
-            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Primeiro mês">
+                  {monthSelect(form.startMonth, (v) =>
+                    setForm((f) => ({ ...f, startMonth: v, endMonth: f.endMonth < v ? v : f.endMonth })),
+                  )}
+                </Field>
+                <Field label="Último mês">{monthSelect(form.endMonth, (v) => setForm((f) => ({ ...f, endMonth: v })))}</Field>
+              </div>
+              <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+                {months > 0 && form.monthly > 0 ? (
+                  <>
+                    {months} {months === 1 ? "mês" : "meses"} × {fmtEur(form.monthly)} ={" "}
+                    <span className="font-semibold text-foreground">{fmtEur(months * form.monthly)}</span> no total
+                  </>
+                ) : (
+                  "Escolhe o valor e o período."
+                )}
+              </p>
+            </>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Valor (€)">
+                <Input
+                  inputMode="decimal"
+                  value={form.amount}
+                  onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+                  placeholder="250"
+                  autoFocus
+                />
+              </Field>
               <Field label="Data">
                 <Input type="date" value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} />
               </Field>
-            )}
-          </div>
+            </div>
+          )}
           <Field label="Nota">
-            <Input value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} placeholder="Ex.: salário de agosto" />
+            <Input
+              value={form.note}
+              onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
+              placeholder={form.kind === "mensal" ? "Ex.: parte do salário" : "Ex.: prenda de anos"}
+            />
           </Field>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button type="submit">Registar</Button>
+            <Button type="submit">{editing ? "Guardar" : "Registar"}</Button>
           </DialogFooter>
         </form>
       </DialogContent>

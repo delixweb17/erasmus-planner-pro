@@ -52,6 +52,18 @@ export interface SavingsEntry {
   /** "mensal" = depósito do mês (yyyy-mm em `month`), "extra" = pontual */
   kind?: "mensal" | "extra";
   month?: string;
+  /** Preenchido nas entradas geradas a partir de um depósito mensal */
+  recurringId?: string;
+}
+
+/** Valor que entra no dia 1 de cada mês, de `startMonth` a `endMonth` (yyyy-mm, inclusive). */
+export interface RecurringSaving {
+  id: string;
+  personId: PersonId;
+  amount: number;
+  startMonth: string;
+  endMonth: string;
+  note?: string | undefined;
 }
 
 export type BookingCategory = "transporte" | "alojamento" | "atividade" | "outro";
@@ -89,10 +101,8 @@ export interface AppData {
   savings: SavingsEntry[];
   settlements: Settlement[];
   bookings: Booking[];
-  /** Valor mensal planeado por pessoa */
-  monthlyPlan: Record<PersonId, number>;
-  /** Depósito automático: a partir de `startMonth` entra `monthlyPlan` todos os meses */
-  autoSavings: Record<PersonId, { startMonth: string; lastMonth: string | null }>;
+  /** Depósitos mensais; as entradas de cada mês são calculadas, não guardadas */
+  recurring: RecurringSaving[];
   savingsGoal: number;
   savingsDeadline: string;
 }

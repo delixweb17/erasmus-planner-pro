@@ -8,8 +8,17 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { AppData, Booking, Expense, Person, SavingsEntry, Settlement, Trip } from "./types";
-import { applyAutoSavings, migrate, repository } from "./repository";
+import type {
+  AppData,
+  Booking,
+  Expense,
+  Person,
+  RecurringSaving,
+  SavingsEntry,
+  Settlement,
+  Trip,
+} from "./types";
+import { migrate, repository } from "./repository";
 import { defaultBookings } from "./seed";
 
 export const newId = () =>
@@ -30,8 +39,9 @@ interface StoreActions {
   addSettlement: (s: Omit<Settlement, "id">) => void;
   removeSettlement: (id: string) => void;
   setSavingsGoal: (goal: number) => void;
-  setMonthlyPlan: (personId: string, amount: number) => void;
-  setAutoSavings: (personId: string, startMonth: string | null) => void;
+  addRecurring: (r: Omit<RecurringSaving, "id">) => void;
+  updateRecurring: (id: string, patch: Partial<RecurringSaving>) => void;
+  removeRecurring: (id: string) => void;
   addBooking: (b: Omit<Booking, "id">) => void;
   updateBooking: (id: string, patch: Partial<Booking>) => void;
   removeBooking: (id: string) => void;
@@ -115,15 +125,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
       removeSettlement: (id) =>
         mutate((d) => ({ ...d, settlements: d.settlements.filter((s) => s.id !== id) })),
       setSavingsGoal: (goal) => mutate((d) => ({ ...d, savingsGoal: goal })),
-      setMonthlyPlan: (personId, amount) =>
-        mutate((d) => ({ ...d, monthlyPlan: { ...d.monthlyPlan, [personId]: amount } })),
-      setAutoSavings: (personId, startMonth) =>
-        mutate((d) => {
-          const auto = { ...d.autoSavings };
-          if (startMonth) auto[personId] = { startMonth, lastMonth: null };
-          else delete auto[personId];
-          return applyAutoSavings({ ...d, autoSavings: auto });
-        }),
+      addRecurring: (r) =>
+        mutate((d) => ({ ...d, recurring: [...d.recurring, { ...r, id: newId() }] })),
+      updateRecurring: (id, patch) =>
+        mutate((d) => ({
+          ...d,
+          recurring: d.recurring.map((r) => (r.id === id ? { ...r, ...patch } : r)),
+        })),
+      removeRecurring: (id) =>
+        mutate((d) => ({ ...d, recurring: d.recurring.filter((r) => r.id !== id) })),
       addBooking: (b) => mutate((d) => ({ ...d, bookings: [...d.bookings, { ...b, id: newId() }] })),
       updateBooking: (id, patch) =>
         mutate((d) => ({ ...d, bookings: d.bookings.map((b) => (b.id === id ? { ...b, ...patch } : b)) })),
@@ -132,7 +142,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         repository.setActiveProfile(id);
         setActive(id);
       },
-      importData: (imported) => setData(applyAutoSavings(migrate(imported))),
+      importData: (imported) => setData(migrate(imported)),
       resetData: async () => {
         const seed = await repository.reset();
         setData(seed);

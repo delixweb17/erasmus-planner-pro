@@ -1,4 +1,14 @@
-import type { AppData, Expense, Person, PersonId, Settlement, Trip } from "@/data/types";
+import type {
+  AppData,
+  Expense,
+  Person,
+  PersonId,
+  RecurringSaving,
+  SavingsEntry,
+  Settlement,
+  Trip,
+} from "@/data/types";
+import { addMonths, lastMonthBefore, monthOf } from "@/data/repository";
 
 export const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -94,10 +104,53 @@ export function tripCost(trip: Trip, expenses: Expense[]): TripCost {
   };
 }
 
+/** Meses de um depósito mensal entre `from` e `to` (inclusive, yyyy-mm). */
+export function recurringMonths(r: RecurringSaving, from = r.startMonth, to = r.endMonth) {
+  const out: string[] = [];
+  let m = from > r.startMonth ? from : r.startMonth;
+  const last = to < r.endMonth ? to : r.endMonth;
+  while (m <= last) {
+    out.push(m);
+    m = addMonths(m, 1);
+  }
+  return out;
+}
+
+/** Registos guardados + meses dos depósitos mensais que já entraram (até ao mês atual). */
+export function allSavings(data: AppData, now = new Date()): SavingsEntry[] {
+  const current = monthOf(now);
+  const generated = data.recurring.flatMap((r) =>
+    recurringMonths(r, r.startMonth, current).map(
+      (m): SavingsEntry => ({
+        id: `${r.id}:${m}`,
+        personId: r.personId,
+        amount: r.amount,
+        date: `${m}-01`,
+        kind: "mensal",
+        month: m,
+        note: r.note ?? "Depósito mensal",
+        recurringId: r.id,
+      }),
+    ),
+  );
+  return [...data.savings, ...generated];
+}
+
+/** Quanto os depósitos mensais de uma pessoa ainda vão juntar até ao prazo (meses depois do atual). */
+export function upcomingRecurring(data: AppData, personId: PersonId, now = new Date()) {
+  const from = addMonths(monthOf(now), 1);
+  const to = lastMonthBefore(data.savingsDeadline);
+  return round2(
+    data.recurring
+      .filter((r) => r.personId === personId)
+      .reduce((s, r) => s + r.amount * recurringMonths(r, from, to).length, 0),
+  );
+}
+
 export function savingsByPerson(data: AppData): Record<PersonId, number> {
   const out: Record<PersonId, number> = {};
   for (const p of data.people) out[p.id] = 0;
-  for (const s of data.savings)
+  for (const s of allSavings(data))
     if (out[s.personId] !== undefined) out[s.personId] = (out[s.personId] ?? 0) + s.amount;
   for (const k of Object.keys(out)) out[k] = round2(out[k] ?? 0);
   return out;
@@ -120,7 +173,7 @@ export function totalBudgetPerPerson(trips: Trip[], personId?: PersonId) {
 /** Soma dos depósitos de uma pessoa num mês (yyyy-mm). */
 export function savedInMonth(data: AppData, personId: PersonId, month: string) {
   return round2(
-    data.savings
+    allSavings(data)
       .filter((s) => s.personId === personId && (s.month ?? s.date.slice(0, 7)) === month)
       .reduce((a, s) => a + s.amount, 0),
   );
