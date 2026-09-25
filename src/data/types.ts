@@ -41,6 +41,8 @@ export interface Expense {
   splitBetween: PersonId[];
   date: string;
   category: ExpenseCategory;
+  /** Data em que as contas desta despesa ficaram fechadas (já não conta para os saldos) */
+  closedAt?: string | undefined;
 }
 
 export interface SavingsEntry {
@@ -91,6 +93,8 @@ export interface Settlement {
   to: PersonId;
   amount: number;
   date: string;
+  /** Data em que este acerto ficou fechado (já não conta para os saldos) */
+  closedAt?: string | undefined;
 }
 
 /** Aula do horário semanal (repete-se todas as semanas no período de aulas). */

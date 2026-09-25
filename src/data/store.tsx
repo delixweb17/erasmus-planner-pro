@@ -33,7 +33,8 @@ import {
   pushOps,
   subscribeCloud,
 } from "./cloud";
-import { savingsByPerson } from "@/lib/finance";
+import { canCloseAccounts, closeAccounts, savingsByPerson } from "@/lib/finance";
+import { todayISO } from "@/lib/semester";
 
 export const newId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -52,6 +53,8 @@ interface StoreActions {
   removeSavings: (id: string) => void;
   addSettlement: (s: Omit<Settlement, "id">) => void;
   removeSettlement: (id: string) => void;
+  /** Passa as contas abertas (já quites) para o histórico */
+  closeAccounts: () => void;
   setSavingsGoal: (goal: number) => void;
   addRecurring: (r: Omit<RecurringSaving, "id">) => void;
   updateRecurring: (id: string, patch: Partial<RecurringSaving>) => void;
@@ -222,8 +225,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
         mutate((d) => ({ ...d, savings: [...d.savings, { ...entry, id: newId() }] })),
       removeSavings: (id) =>
         mutate((d) => ({ ...d, savings: d.savings.filter((s) => s.id !== id) })),
+      // Quando o acerto deixa toda a gente quite, as contas fecham sozinhas.
       addSettlement: (s) =>
-        mutate((d) => ({ ...d, settlements: [...d.settlements, { ...s, id: newId() }] })),
+        mutate((d) => {
+          const next = { ...d, settlements: [...d.settlements, { ...s, id: newId() }] };
+          return canCloseAccounts(next) ? closeAccounts(next, s.date) : next;
+        }),
+      closeAccounts: () => mutate((d) => (canCloseAccounts(d) ? closeAccounts(d, todayISO()) : d)),
       removeSettlement: (id) =>
         mutate((d) => ({ ...d, settlements: d.settlements.filter((s) => s.id !== id) })),
       setSavingsGoal: (goal) => mutate((d) => ({ ...d, savingsGoal: goal })),

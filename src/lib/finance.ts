@@ -50,7 +50,8 @@ export function netBalances(
   const net: Record<PersonId, number> = {};
   for (const p of people) net[p.id] = 0;
   for (const e of expenses) {
-    if (net[e.paidBy] === undefined) continue;
+    // Contas fechadas já não contam.
+    if (e.closedAt || net[e.paidBy] === undefined) continue;
     const shares = splitCents(e);
     // O que não é de ninguém do grupo (pessoa que já não existe) fica com quem pagou.
     let assigned = 0;
@@ -62,12 +63,28 @@ export function netBalances(
     net[e.paidBy] = (net[e.paidBy] ?? 0) + assigned;
   }
   for (const s of settlements) {
-    if (net[s.from] === undefined || net[s.to] === undefined) continue;
+    if (s.closedAt || net[s.from] === undefined || net[s.to] === undefined) continue;
     net[s.from] = (net[s.from] ?? 0) + toCents(s.amount);
     net[s.to] = (net[s.to] ?? 0) - toCents(s.amount);
   }
   for (const k of Object.keys(net)) net[k] = (net[k] ?? 0) / 100;
   return net;
+}
+
+/** Toda a gente quite nas contas abertas, e há acertos feitos (ou seja, alguém pagou alguma coisa). */
+export function canCloseAccounts(d: Pick<AppData, "people" | "expenses" | "settlements">) {
+  const hasOpen = d.expenses.some((e) => !e.closedAt) || d.settlements.some((s) => !s.closedAt);
+  if (!hasOpen) return false;
+  return Object.values(netBalances(d.people, d.expenses, d.settlements)).every(isSettled);
+}
+
+/** Passa as despesas e acertos abertos para o histórico ("contas fechadas"). */
+export function closeAccounts<T extends Pick<AppData, "expenses" | "settlements">>(d: T, date: string): T {
+  return {
+    ...d,
+    expenses: d.expenses.map((e) => (e.closedAt ? e : { ...e, closedAt: date })),
+    settlements: d.settlements.map((s) => (s.closedAt ? s : { ...s, closedAt: date })),
+  };
 }
 
 export interface Transfer {
