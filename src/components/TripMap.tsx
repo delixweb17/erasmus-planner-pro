@@ -3,9 +3,10 @@ import { CircleMarker, MapContainer, Polyline, Popup, TileLayer, Tooltip } from 
 import type { Trip } from "@/data/types";
 import { PISA } from "@/data/seed";
 import { fmtEur, fmtRange } from "@/lib/format";
-import { hasConflict } from "./bits";
+import { useTripConflicts } from "./bits";
 
 export default function TripMap({ trips, activeId }: { trips: Trip[]; activeId?: string | null }) {
+  const conflictsOf = useTripConflicts();
   const sorted = [...trips].sort((a, b) => a.startDate.localeCompare(b.startDate));
   const route: [number, number][] = [
     [PISA.lat, PISA.lng],
@@ -38,7 +39,7 @@ export default function TripMap({ trips, activeId }: { trips: Trip[]; activeId?:
         </Tooltip>
       </CircleMarker>
       {sorted.map((t, i) => {
-        const conflict = hasConflict(t);
+        const conflict = conflictsOf(t).length > 0;
         const active = t.id === activeId;
         return (
           <CircleMarker

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { Person, Trip, TripStatus } from "@/data/types";
+import { useCallback } from "react";
 import { useStore } from "@/data/store";
 import { PERIOD_LABEL, tripConflicts, tripPeriods, type PeriodKind } from "@/lib/semester";
 import { initials, pct } from "@/lib/format";
@@ -60,8 +61,17 @@ const PERIOD_CLASS: Record<PeriodKind, string> = {
   exames: "bg-exames/12 text-exames border-exames/30",
 };
 
-export function PeriodBadge({ kind, className }: { kind: PeriodKind; className?: string }) {
-  const conflict = kind !== "pausa";
+export function PeriodBadge({
+  kind,
+  className,
+  warn = kind !== "pausa",
+}: {
+  kind: PeriodKind;
+  className?: string;
+  /** Mostra o aviso (a viagem faz faltar) */
+  warn?: boolean;
+}) {
+  const conflict = warn;
   return (
     <span
       className={cn(
@@ -76,8 +86,9 @@ export function PeriodBadge({ kind, className }: { kind: PeriodKind; className?:
   );
 }
 
-export function TripPeriodBadges({ trip }: { trip: Pick<Trip, "startDate" | "endDate"> }) {
+export function TripPeriodBadges({ trip }: { trip: Pick<Trip, "startDate" | "endDate" | "participants"> }) {
   const periods = tripPeriods(trip);
+  const conflicts = useTripConflicts()(trip);
   if (periods.length === 0)
     return (
       <span className="inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
@@ -87,14 +98,20 @@ export function TripPeriodBadges({ trip }: { trip: Pick<Trip, "startDate" | "end
   return (
     <span className="flex flex-wrap gap-1">
       {periods.map((k) => (
-        <PeriodBadge key={k} kind={k} />
+        <PeriodBadge key={k} kind={k} warn={(conflicts as PeriodKind[]).includes(k)} />
       ))}
     </span>
   );
 }
 
-export const hasConflict = (trip: Pick<Trip, "startDate" | "endDate">) =>
-  tripConflicts(trip).length > 0;
+/** Devolve uma função que diz em que períodos (aulas/exames) uma viagem faz faltar, tendo em conta o horário. */
+export function useTripConflicts() {
+  const timetable = useStore().data?.timetable;
+  return useCallback(
+    (trip: Pick<Trip, "startDate" | "endDate" | "participants">) => tripConflicts(trip, timetable ?? []),
+    [timetable],
+  );
+}
 
 /* ---------- Estado da viagem ---------- */
 

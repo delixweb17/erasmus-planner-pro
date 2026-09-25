@@ -227,3 +227,14 @@
 .leaflet-container a.leaflet-popup-close-button {
   color: var(--color-muted-foreground);
 }
+
+/* Sem as setas do browser nos campos numéricos (usamos o NumberStepper onde faz falta) */
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}

@@ -1,10 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { MapPin, Plus } from "lucide-react";
+import { useState } from "react";
 import { PageHeader } from "@/components/AppShell";
-import { Loaded } from "@/components/bits";
-import { useData } from "@/data/store";
-import type { Trip } from "@/data/types";
+import { AvatarStack, EmptyState, Loaded, PersonAvatar, Section } from "@/components/bits";
+import { ClassFormDialog } from "@/components/forms";
+import { Button } from "@/components/ui/button";
+import { useData, useStore } from "@/data/store";
+import type { ClassSlot, PersonId, Trip } from "@/data/types";
 import { fmtRange } from "@/lib/format";
-import { PERIODS, periodForDate, toISODate, type PeriodKind } from "@/lib/semester";
+import { PERIODS, WEEKDAY_LABEL, classesOn, periodForDate, toISODate, type PeriodKind } from "@/lib/semester";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/calendario")({
@@ -55,14 +59,123 @@ const PERIOD_DOT: Record<PeriodKind, string> = {
 };
 
 function CalendarPage() {
-  const { trips } = useData();
+  const { trips, timetable, people } = useData();
+  const { activeProfile } = useStore();
+  /** Horário de quem se está a ver: uma pessoa ou todos (null) */
+  const [viewing, setViewing] = useState<PersonId | null>(activeProfile);
+  const [dialog, setDialog] = useState<{ open: boolean; slot: ClassSlot | null; weekday: number }>({
+    open: false,
+    slot: null,
+    weekday: 1,
+  });
+  const openClass = (slot: ClassSlot | null, weekday = 1) => setDialog({ open: true, slot, weekday });
+
+  const visible = viewing ? timetable.filter((c) => c.people.includes(viewing)) : timetable;
+  const days = timetable.some((c) => c.weekday === 6) ? [1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 5];
+  const byId = Object.fromEntries(people.map((p) => [p.id, p]));
+
   return (
     <>
       <PageHeader
         eyebrow="Setembro 2027 – Fevereiro 2028"
         title="Calendário"
-        description="Fundo azul: aulas. Verde: pausa. Vermelho: exames. As barras são viagens — toca para abrir."
+        description={
+          timetable.length > 0
+            ? "Fundo azul: dias com aulas no horário. Verde: pausa. Vermelho: exames. As barras são viagens — toca para abrir."
+            : "Fundo azul: aulas. Verde: pausa. Vermelho: exames. As barras são viagens — toca para abrir."
+        }
       />
+
+      <Section
+        title="Horário semanal"
+        className="mb-10"
+        action={
+          timetable.length > 0 && (
+            <Button variant="outline" size="sm" onClick={() => openClass(null)}>
+              <Plus /> Aula
+            </Button>
+          )
+        }
+      >
+        {timetable.length === 0 ? (
+          <EmptyState
+            title="Ainda sem horário."
+            hint="Põe aqui as vossas aulas. O calendário passa a mostrar só os dias com aulas, e uma viagem só conta como falta se apanhar aulas de quem vai."
+            action={
+              <Button variant="outline" size="sm" onClick={() => openClass(null)}>
+                <Plus /> Primeira aula
+              </Button>
+            }
+          />
+        ) : (
+          <>
+            <div className="mb-3 flex flex-wrap gap-1.5">
+              {[null, ...people.map((p) => p.id)].map((id) => (
+                <button
+                  key={id ?? "todos"}
+                  type="button"
+                  onClick={() => setViewing(id)}
+                  className={cn(
+                    "flex cursor-pointer items-center gap-1.5 rounded-full border py-1 text-xs font-medium transition-colors",
+                    id ? "pl-1 pr-2.5" : "px-3",
+                    viewing === id
+                      ? "border-primary bg-primary/10 text-foreground"
+                      : "text-muted-foreground hover:bg-accent",
+                  )}
+                >
+                  {id && <PersonAvatar person={byId[id]} size="sm" />}
+                  {id ? byId[id]?.name : "Todos"}
+                </button>
+              ))}
+            </div>
+            <div className={cn("grid gap-3", days.length === 6 ? "md:grid-cols-6" : "md:grid-cols-5")}>
+              {days.map((wd) => {
+                const slots = visible.filter((c) => c.weekday === wd).sort((a, b) => a.start.localeCompare(b.start));
+                return (
+                  <div key={wd} className="card-soft flex flex-col p-2.5">
+                    <p className="eyebrow mb-2 px-1">{WEEKDAY_LABEL[wd]}</p>
+                    <div className="flex flex-1 flex-col gap-2">
+                      {slots.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => openClass(c)}
+                          className="cursor-pointer rounded-lg border border-aulas/30 bg-aulas/10 p-2.5 text-left transition-colors hover:bg-aulas/15"
+                        >
+                          <p className="tabular text-[11px] font-semibold text-aulas">
+                            {c.start}–{c.end}
+                          </p>
+                          <p className="mt-0.5 text-sm font-semibold leading-snug">{c.subject}</p>
+                          {c.room && (
+                            <p className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
+                              <MapPin className="size-3 shrink-0" />
+                              <span className="truncate">{c.room}</span>
+                            </p>
+                          )}
+                          <div className="mt-2">
+                            <AvatarStack people={c.people.map((id) => byId[id]).filter((p) => !!p)} />
+                          </div>
+                        </button>
+                      ))}
+                      {slots.length === 0 && (
+                        <p className="px-1 pb-1 text-xs text-muted-foreground">Sem aulas</p>
+                      )}
+                      <button
+                        type="button"
+                        aria-label={`Adicionar aula à ${WEEKDAY_LABEL[wd]?.toLowerCase()}`}
+                        onClick={() => openClass(null, wd)}
+                        className="mt-auto flex cursor-pointer items-center justify-center rounded-lg border border-dashed py-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                      >
+                        <Plus className="size-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </Section>
       <div className="fade-up mb-6 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground">
         {PERIODS.map((p) => (
           <span key={p.kind} className="flex items-center gap-1.5">
@@ -77,14 +190,33 @@ function CalendarPage() {
 
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         {MONTHS.map(({ y, m }) => (
-          <Month key={`${y}-${m}`} year={y} month={m} trips={trips} />
+          <Month key={`${y}-${m}`} year={y} month={m} trips={trips} timetable={visible} hasTimetable={timetable.length > 0} />
         ))}
       </div>
+
+      <ClassFormDialog
+        open={dialog.open}
+        onOpenChange={(open) => setDialog((d) => ({ ...d, open }))}
+        slot={dialog.slot}
+        defaultWeekday={dialog.weekday}
+      />
     </>
   );
 }
 
-function Month({ year, month, trips }: { year: number; month: number; trips: Trip[] }) {
+function Month({
+  year,
+  month,
+  trips,
+  timetable,
+  hasTimetable,
+}: {
+  year: number;
+  month: number;
+  trips: Trip[];
+  timetable: ClassSlot[];
+  hasTimetable: boolean;
+}) {
   const first = new Date(year, month, 1);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const offset = (first.getDay() + 6) % 7; // segunda = 0
@@ -106,7 +238,9 @@ function Month({ year, month, trips }: { year: number; month: number; trips: Tri
       <div className="grid grid-cols-7 gap-px p-2">
         {cells.map((iso, i) => {
           if (!iso) return <div key={i} />;
-          const period = periodForDate(iso);
+          const classes = classesOn(iso, timetable);
+          // Com horário, o fundo azul só aparece nos dias em que há mesmo aulas.
+          const period = periodForDate(iso) === "aulas" && hasTimetable && classes.length === 0 ? null : periodForDate(iso);
           const dayTrips = trips.filter((t) => iso >= t.startDate && iso <= t.endDate);
           const trip = dayTrips[0];
           const weekday = i % 7;
@@ -115,9 +249,11 @@ function Month({ year, month, trips }: { year: number; month: number; trips: Tri
           return (
             <div
               key={iso}
+              title={classes.length ? classes.map((c) => `${c.start} ${c.subject}`).join("\n") : undefined}
               className={cn(
                 "relative flex h-14 flex-col rounded-md p-1 text-[11px]",
                 period && PERIOD_BG[period],
+                classes.length > 0 && "bg-aulas/15",
               )}
             >
               <span className={cn("tabular leading-none", weekday >= 5 && "text-muted-foreground")}>

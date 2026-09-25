@@ -3,7 +3,7 @@ import { Download, RotateCcw, Upload } from "lucide-react";
 import { useRef } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
-import { Loaded, PersonAvatar, Section } from "@/components/bits";
+import { Loaded, NumberStepper, PersonAvatar, Section } from "@/components/bits";
 import { Field } from "@/components/forms";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,14 +73,14 @@ function SettingsPage() {
         <div className="space-y-10">
           <Section title="Poupança">
             <div className="card-soft p-5">
-              <Field label="Meta por pessoa (€)" hint="Prazo: 1 de setembro de 2027.">
-                <Input
-                  type="number"
-                  min={0}
+              <Field label="Meta por pessoa" hint="Prazo: 1 de setembro de 2027.">
+                <NumberStepper
                   step={100}
+                  unit="€"
+                  aria-label="Meta por pessoa"
                   value={data.savingsGoal}
-                  onChange={(e) => setSavingsGoal(Number(e.target.value) || 0)}
-                  className="max-w-40"
+                  onChange={setSavingsGoal}
+                  className="w-44"
                 />
               </Field>
             </div>

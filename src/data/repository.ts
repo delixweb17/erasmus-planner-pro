@@ -28,6 +28,7 @@ export function migrate(d: AppData): AppData {
   if (!out.bookings)
     out.bookings = out.trips.flatMap((t) => defaultBookings(t, (i) => `b-${t.id}-${i}`));
   if (!out.recurring) out.recurring = [];
+  if (!out.timetable) out.timetable = [];
 
   // Remove entradas repetidas (o interruptor antigo gravava o mesmo mês várias vezes).
   const seen = new Set<string>();

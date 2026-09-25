@@ -1,7 +1,7 @@
 import { ClientOnly, createFileRoute, Link } from "@tanstack/react-router";
 import { lazy, Suspense, useState } from "react";
 import { PageHeader } from "@/components/AppShell";
-import { Loaded, hasConflict } from "@/components/bits";
+import { Loaded, useTripConflicts } from "@/components/bits";
 import { useData } from "@/data/store";
 import { fmtEur, fmtRange } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -25,6 +25,7 @@ function MapSkeleton() {
 }
 
 function MapPage() {
+  const conflictsOf = useTripConflicts();
   const { trips } = useData();
   const [active, setActive] = useState<string | null>(null);
   const sorted = [...trips].sort((a, b) => a.startDate.localeCompare(b.startDate));
@@ -60,7 +61,7 @@ function MapPage() {
                 <span
                   className={cn(
                     "tabular flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-primary-foreground",
-                    hasConflict(t) ? "bg-exames" : "bg-primary",
+                    conflictsOf(t).length > 0 ? "bg-exames" : "bg-primary",
                   )}
                 >
                   {i + 1}

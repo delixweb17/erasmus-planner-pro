@@ -4,7 +4,8 @@ import { pt } from "date-fns/locale";
 import { CalendarDays, X } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { PERIODS, toISODate } from "@/lib/semester";
+import { useStore } from "@/data/store";
+import { PERIODS, classesOn, toISODate } from "@/lib/semester";
 import { cn } from "@/lib/utils";
 
 const parse = (iso: string) => new Date(iso + "T00:00:00");
@@ -40,6 +41,10 @@ export function DatePicker({
   "aria-label"?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const timetable = useStore().data?.timetable ?? [];
+  // Com horário, só se marcam os dias em que há mesmo aulas.
+  const aulas =
+    timetable.length > 0 ? (d: Date) => classesOn(toISODate(d), timetable).length > 0 : periodRange("aulas");
   const selected = value ? parse(value) : undefined;
 
   return (
@@ -88,7 +93,7 @@ export function DatePicker({
           classNames={{ caption_label: "select-none text-sm font-semibold capitalize" }}
           {...(semester
             ? {
-                modifiers: { aulas: periodRange("aulas"), exames: periodRange("exames") },
+                modifiers: { aulas, exames: periodRange("exames") },
                 modifiersClassNames: {
                   aulas: cn(dot, "after:bg-aulas"),
                   exames: cn(dot, "after:bg-exames"),

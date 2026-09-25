@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, Plus } from "lucide-react";
 import { useState } from "react";
 import { PageHeader } from "@/components/AppShell";
-import { BudgetBar, Loaded, PersonAvatar, Section, Stat, hasConflict } from "@/components/bits";
+import { BudgetBar, Loaded, PersonAvatar, Section, Stat, useTripConflicts } from "@/components/bits";
 import { TripCard } from "@/components/TripCard";
 import { ExpenseFormDialog } from "@/components/forms";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ function Index() {
 }
 
 function Dashboard() {
+  const conflictsOf = useTripConflicts();
   const data = useData();
   const { people, trips, expenses, settlements, savingsGoal, savingsDeadline } = data;
   const [expenseOpen, setExpenseOpen] = useState(false);
@@ -43,7 +44,7 @@ function Dashboard() {
   const budgetPerPerson = totalBudgetPerPerson(trips);
   const spentTotal = expenses.reduce((s, e) => s + e.amount, 0);
   const budgetTotal = trips.reduce((s, t) => s + tripCost(t, expenses).budgetTotal, 0);
-  const conflicts = trips.filter(hasConflict).length;
+  const conflicts = trips.filter((t) => conflictsOf(t).length > 0).length;
 
   const net = netBalances(people, expenses, settlements);
   const transfers = simplifyDebts(net);

@@ -93,6 +93,20 @@ export interface Settlement {
   date: string;
 }
 
+/** Aula do horário semanal (repete-se todas as semanas no período de aulas). */
+export interface ClassSlot {
+  id: string;
+  subject: string;
+  /** 1 = segunda … 6 = sábado */
+  weekday: number;
+  /** "HH:MM" */
+  start: string;
+  end: string;
+  room?: string | undefined;
+  /** Quem tem esta aula */
+  people: PersonId[];
+}
+
 export interface AppData {
   version: 1;
   people: Person[];
@@ -103,6 +117,8 @@ export interface AppData {
   bookings: Booking[];
   /** Depósitos mensais; as entradas de cada mês são calculadas, não guardadas */
   recurring: RecurringSaving[];
+  /** Horário semanal da universidade */
+  timetable: ClassSlot[];
   savingsGoal: number;
   savingsDeadline: string;
 }

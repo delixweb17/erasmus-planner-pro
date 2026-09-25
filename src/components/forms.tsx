@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useData, useStore } from "@/data/store";
-import type { Expense, ExpenseCategory, RecurringSaving, Trip, TripStatus } from "@/data/types";
+import type { ClassSlot, Expense, ExpenseCategory, RecurringSaving, Trip, TripStatus } from "@/data/types";
 import { NumberStepper, STATUS_LABEL, PersonAvatar } from "@/components/bits";
 import { PISA } from "@/data/seed";
 import { DatePicker } from "@/components/DatePicker";
@@ -23,7 +23,7 @@ import { Loader2, MapPin } from "lucide-react";
 import { addMonths, lastMonthBefore } from "@/data/repository";
 import { recurringMonths } from "@/lib/finance";
 import { fmtEur } from "@/lib/format";
-import { todayISO } from "@/lib/semester";
+import { WEEKDAY_LABEL, todayISO } from "@/lib/semester";
 import { cn } from "@/lib/utils";
 
 export const CATEGORY_LABEL: Record<ExpenseCategory, string> = {
@@ -278,13 +278,13 @@ export function TripFormDialog({ open, onOpenChange, trip }: TripFormProps) {
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Orçamento / pessoa (€)">
-              <Input
-                type="number"
-                min={0}
-                step={5}
+            <Field label="Orçamento por pessoa">
+              <NumberStepper
+                step={10}
+                unit="€"
+                aria-label="Orçamento por pessoa"
                 value={form.budgetPerPerson}
-                onChange={(e) => set("budgetPerPerson", Number(e.target.value))}
+                onChange={(v) => set("budgetPerPerson", v)}
               />
             </Field>
             <Field label="Estado">
@@ -681,6 +681,146 @@ export function SavingsFormDialog({
               Cancelar
             </Button>
             <Button type="submit">{editing ? "Guardar" : "Registar"}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ---------- Horário ---------- */
+
+const TIMES = Array.from({ length: 31 }, (_, i) => {
+  const mins = 7 * 60 + i * 30;
+  return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
+});
+
+export function ClassFormDialog({
+  open,
+  onOpenChange,
+  slot,
+  defaultWeekday = 1,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  slot?: ClassSlot | null;
+  defaultWeekday?: number;
+}) {
+  const { addClass, updateClass, removeClass, activeProfile } = useStore();
+  const { people } = useData();
+  const blank = () => ({
+    subject: slot?.subject ?? "",
+    weekday: String(slot?.weekday ?? defaultWeekday),
+    start: slot?.start ?? "09:00",
+    end: slot?.end ?? "11:00",
+    room: slot?.room ?? "",
+    people: slot?.people ?? (activeProfile ? [activeProfile] : people.map((p) => p.id)),
+  });
+  const [form, setForm] = useState(blank);
+
+  useEffect(() => {
+    if (open) setForm(blank());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, slot, defaultWeekday]);
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.subject.trim()) {
+      toast.error("Dá um nome à disciplina.");
+      return;
+    }
+    if (form.end <= form.start) {
+      toast.error("A aula tem de acabar depois de começar.");
+      return;
+    }
+    if (form.people.length === 0) {
+      toast.error("Escolhe quem tem esta aula.");
+      return;
+    }
+    const payload = {
+      subject: form.subject.trim(),
+      weekday: Number(form.weekday),
+      start: form.start,
+      end: form.end,
+      room: form.room.trim() || undefined,
+      people: form.people,
+    };
+    if (slot) updateClass(slot.id, payload);
+    else addClass(payload);
+    toast.success(slot ? "Aula atualizada." : "Aula adicionada ao horário.");
+    onOpenChange(false);
+  };
+
+  const timeOptions = TIMES.map((t) => ({ value: t, label: t }));
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-display text-2xl">{slot ? "Editar aula" : "Nova aula"}</DialogTitle>
+          <DialogDescription>Repete-se todas as semanas, de 15 de setembro a 7 de dezembro.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4">
+          <Field label="Disciplina">
+            <Input
+              value={form.subject}
+              onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
+              placeholder="Ex.: Analisi Matematica"
+              autoFocus
+            />
+          </Field>
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="Dia">
+              <Choice
+                value={form.weekday}
+                onChange={(v) => setForm((f) => ({ ...f, weekday: v }))}
+                options={[1, 2, 3, 4, 5, 6].map((d) => ({ value: String(d), label: WEEKDAY_LABEL[d]! }))}
+              />
+            </Field>
+            <Field label="Início">
+              <Choice
+                value={form.start}
+                onChange={(v) => setForm((f) => ({ ...f, start: v, end: f.end <= v ? TIMES[TIMES.indexOf(v) + 4] ?? v : f.end }))}
+                options={timeOptions}
+              />
+            </Field>
+            <Field label="Fim">
+              <Choice value={form.end} onChange={(v) => setForm((f) => ({ ...f, end: v }))} options={timeOptions} />
+            </Field>
+          </div>
+          <Field label="Sala">
+            <Input
+              value={form.room}
+              onChange={(e) => setForm((f) => ({ ...f, room: e.target.value }))}
+              placeholder="Opcional — ex.: Aula B, Polo Fibonacci"
+            />
+          </Field>
+          <Field label="Quem tem esta aula">
+            <PeoplePicker value={form.people} onChange={(v) => setForm((f) => ({ ...f, people: v }))} />
+          </Field>
+          <DialogFooter className="gap-2 sm:justify-between">
+            {slot ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="text-destructive hover:text-destructive"
+                onClick={() => {
+                  removeClass(slot.id);
+                  toast.success("Aula removida do horário.");
+                  onOpenChange(false);
+                }}
+              >
+                Apagar
+              </Button>
+            ) : (
+              <span />
+            )}
+            <div className="flex gap-2">
+              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit">{slot ? "Guardar" : "Adicionar"}</Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>

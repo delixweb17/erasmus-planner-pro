@@ -4,7 +4,7 @@ import type { Expense, Person, Trip } from "@/data/types";
 import { tripCost } from "@/lib/finance";
 import { fmtEur, fmtRange } from "@/lib/format";
 import { tripDays } from "@/lib/semester";
-import { AvatarStack, BudgetBar, StatusBadge, TripPeriodBadges, hasConflict } from "./bits";
+import { AvatarStack, BudgetBar, StatusBadge, TripPeriodBadges, useTripConflicts } from "./bits";
 import { cn } from "@/lib/utils";
 
 export function TripCard({
@@ -22,7 +22,7 @@ export function TripCard({
 }) {
   const cost = tripCost(trip, expenses);
   const participants = people.filter((p) => trip.participants.includes(p.id));
-  const conflict = hasConflict(trip);
+  const conflict = useTripConflicts()(trip).length > 0;
   const days = tripDays(trip);
 
   return (
