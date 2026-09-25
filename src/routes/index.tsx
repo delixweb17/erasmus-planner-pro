@@ -8,7 +8,7 @@ import { ExpenseFormDialog } from "@/components/forms";
 import { Button } from "@/components/ui/button";
 import { useData, useStore } from "@/data/store";
 import { netBalances, savingsByPerson, simplifyDebts, totalBudgetPerPerson, tripCost } from "@/lib/finance";
-import { fmtEur, fmtLong, fmtShort } from "@/lib/format";
+import { fmtEur, fmtEurCents, fmtLong, fmtShort } from "@/lib/format";
 import { daysBetween, todayISO } from "@/lib/semester";
 
 export const Route = createFileRoute("/")({
@@ -166,7 +166,7 @@ function Dashboard() {
                       <ArrowRight className="size-3.5 text-muted-foreground" />
                       <PersonAvatar person={byId[t.to]} size="sm" />
                       <span className="font-medium">{byId[t.to]?.name}</span>
-                      <span className="tabular ml-auto font-semibold">{fmtEur(t.amount)}</span>
+                      <span className="tabular ml-auto font-semibold">{fmtEurCents(t.amount)}</span>
                     </li>
                   ))}
                 </ul>

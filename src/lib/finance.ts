@@ -12,13 +12,45 @@ import { addMonths, lastMonthBefore, monthOf } from "@/data/repository";
 
 export const round2 = (n: number) => Math.round(n * 100) / 100;
 
-/** Quota de cada pessoa numa despesa. */
-export function shareOf(expense: Expense, personId: PersonId) {
-  if (!expense.splitBetween.includes(personId) || expense.splitBetween.length === 0) return 0;
-  return expense.amount / expense.splitBetween.length;
+const toCents = (euros: number) => Math.round(euros * 100);
+
+/**
+ * Diferenças até este valor (em cêntimos) não pedem transferência: são restos de arredondamento
+ * de acertos registados antes de as contas serem feitas ao cêntimo.
+ */
+export const SETTLED_CENTS = 4;
+
+/** Um saldo que já não vale uma transferência. */
+export const isSettled = (euros: number) => Math.abs(toCents(euros)) <= SETTLED_CENTS;
+
+/**
+ * Parte de cada pessoa numa despesa, em cêntimos, somando sempre o valor exato.
+ * Quando a divisão não dá certa, os cêntimos que sobram vão primeiro para quem pagou
+ * (se entrar na divisão) e depois pela ordem da lista — sempre da mesma forma.
+ */
+export function splitCents(expense: Pick<Expense, "amount" | "paidBy" | "splitBetween">): Record<PersonId, number> {
+  const people = [...new Set(expense.splitBetween)];
+  const out: Record<PersonId, number> = {};
+  if (people.length === 0) return out;
+  const total = toCents(expense.amount);
+  const base = Math.floor(total / people.length);
+  let rest = total - base * people.length;
+  const order = people.includes(expense.paidBy)
+    ? [expense.paidBy, ...people.filter((p) => p !== expense.paidBy)]
+    : people;
+  for (const pid of order) {
+    out[pid] = base + (rest > 0 ? 1 : 0);
+    if (rest > 0) rest--;
+  }
+  return out;
 }
 
-/** Saldo líquido por pessoa: positivo = tem a receber, negativo = deve. */
+/** Quota de cada pessoa numa despesa (em euros, ao cêntimo). */
+export function shareOf(expense: Expense, personId: PersonId) {
+  return (splitCents(expense)[personId] ?? 0) / 100;
+}
+
+/** Saldo líquido por pessoa: positivo = tem a receber, negativo = deve. Contas feitas em cêntimos. */
 export function netBalances(
   people: Person[],
   expenses: Expense[],
@@ -28,16 +60,22 @@ export function netBalances(
   for (const p of people) net[p.id] = 0;
   for (const e of expenses) {
     if (net[e.paidBy] === undefined) continue;
-    net[e.paidBy] = (net[e.paidBy] ?? 0) + e.amount;
-    for (const pid of e.splitBetween) {
-      if (net[pid] !== undefined) net[pid] = (net[pid] ?? 0) - shareOf(e, pid);
+    const shares = splitCents(e);
+    // O que não é de ninguém do grupo (pessoa que já não existe) fica com quem pagou.
+    let assigned = 0;
+    for (const [pid, cents] of Object.entries(shares)) {
+      if (net[pid] === undefined) continue;
+      net[pid] = (net[pid] ?? 0) - cents;
+      assigned += cents;
     }
+    net[e.paidBy] = (net[e.paidBy] ?? 0) + assigned;
   }
   for (const s of settlements) {
-    if (net[s.from] !== undefined) net[s.from] = (net[s.from] ?? 0) + s.amount;
-    if (net[s.to] !== undefined) net[s.to] = (net[s.to] ?? 0) - s.amount;
+    if (net[s.from] === undefined || net[s.to] === undefined) continue;
+    net[s.from] = (net[s.from] ?? 0) + toCents(s.amount);
+    net[s.to] = (net[s.to] ?? 0) - toCents(s.amount);
   }
-  for (const k of Object.keys(net)) net[k] = round2(net[k] ?? 0);
+  for (const k of Object.keys(net)) net[k] = (net[k] ?? 0) / 100;
   return net;
 }
 
@@ -47,16 +85,16 @@ export interface Transfer {
   amount: number;
 }
 
-/** Simplifica dívidas: número mínimo (aproximado) de transferências. */
+/** Simplifica dívidas: número mínimo (aproximado) de transferências, ao cêntimo. */
 export function simplifyDebts(net: Record<PersonId, number>): Transfer[] {
   const debtors = Object.entries(net)
-    .filter(([, v]) => v < -0.005)
-    .map(([id, v]) => ({ id, amount: -v }))
-    .sort((a, b) => b.amount - a.amount);
+    .map(([id, v]) => ({ id, cents: -toCents(v) }))
+    .filter((d) => d.cents > SETTLED_CENTS)
+    .sort((a, b) => b.cents - a.cents);
   const creditors = Object.entries(net)
-    .filter(([, v]) => v > 0.005)
-    .map(([id, v]) => ({ id, amount: v }))
-    .sort((a, b) => b.amount - a.amount);
+    .map(([id, v]) => ({ id, cents: toCents(v) }))
+    .filter((c) => c.cents > SETTLED_CENTS)
+    .sort((a, b) => b.cents - a.cents);
 
   const transfers: Transfer[] = [];
   let i = 0;
@@ -64,12 +102,12 @@ export function simplifyDebts(net: Record<PersonId, number>): Transfer[] {
   while (i < debtors.length && j < creditors.length) {
     const d = debtors[i]!;
     const c = creditors[j]!;
-    const amount = Math.min(d.amount, c.amount);
-    if (amount > 0.005) transfers.push({ from: d.id, to: c.id, amount: round2(amount) });
-    d.amount -= amount;
-    c.amount -= amount;
-    if (d.amount < 0.005) i++;
-    if (c.amount < 0.005) j++;
+    const cents = Math.min(d.cents, c.cents);
+    if (cents > SETTLED_CENTS) transfers.push({ from: d.id, to: c.id, amount: cents / 100 });
+    d.cents -= cents;
+    c.cents -= cents;
+    if (d.cents <= SETTLED_CENTS) i++;
+    if (c.cents <= SETTLED_CENTS) j++;
   }
   return transfers;
 }

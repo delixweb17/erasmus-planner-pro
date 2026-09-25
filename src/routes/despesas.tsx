@@ -8,7 +8,7 @@ import { CATEGORY_LABEL, ExpenseFormDialog } from "@/components/forms";
 import { Button } from "@/components/ui/button";
 import { useData, useStore } from "@/data/store";
 import type { Expense } from "@/data/types";
-import { netBalances, simplifyDebts } from "@/lib/finance";
+import { isSettled, netBalances, simplifyDebts } from "@/lib/finance";
 import { fmtEur, fmtEurCents, fmtShort } from "@/lib/format";
 import { todayISO } from "@/lib/semester";
 import { cn } from "@/lib/utils";
@@ -73,14 +73,13 @@ function ExpensesPage() {
                     <PersonAvatar person={p} />
                     <span className="flex-1 text-sm font-medium">{p.name}</span>
                     <span
+                      title={isSettled(v) && v !== 0 ? `Diferença de arredondamento de ${fmtEurCents(Math.abs(v))} — não precisa de transferência.` : undefined}
                       className={cn(
                         "tabular text-sm font-semibold",
-                        v > 0.005 && "text-success",
-                        v < -0.005 && "text-destructive",
-                        Math.abs(v) <= 0.005 && "text-muted-foreground",
+                        isSettled(v) ? "text-muted-foreground" : v > 0 ? "text-success" : "text-destructive",
                       )}
                     >
-                      {v > 0.005 ? `recebe ${fmtEurCents(v)}` : v < -0.005 ? `deve ${fmtEurCents(-v)}` : "quite"}
+                      {isSettled(v) ? "quite" : v > 0 ? `recebe ${fmtEurCents(v)}` : `deve ${fmtEurCents(-v)}`}
                     </span>
                   </div>
                 );

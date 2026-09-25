@@ -21,8 +21,8 @@ import { DatePicker } from "@/components/DatePicker";
 import { PlaceSearch, searchPlaces, type Place } from "@/components/PlaceSearch";
 import { Loader2, MapPin } from "lucide-react";
 import { addMonths, lastMonthBefore } from "@/data/repository";
-import { recurringMonths } from "@/lib/finance";
-import { fmtEur } from "@/lib/format";
+import { recurringMonths, splitCents } from "@/lib/finance";
+import { fmtEur, fmtEurCents } from "@/lib/format";
 import { PERIODS, WEEKDAY_LABEL, todayISO } from "@/lib/semester";
 import { cn } from "@/lib/utils";
 
@@ -487,6 +487,7 @@ export function ExpenseFormDialog({ open, onOpenChange, expense, defaultTripId =
           <Field label="Dividir entre">
             <PeoplePicker value={form.splitBetween} onChange={(v) => set("splitBetween", v)} />
           </Field>
+          <SplitPreview amount={form.amount} paidBy={form.paidBy} splitBetween={form.splitBetween} />
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               Cancelar
@@ -685,6 +686,32 @@ export function SavingsFormDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Mostra quanto fica a cada um, ao cêntimo, antes de gravar a despesa. */
+function SplitPreview({ amount, paidBy, splitBetween }: { amount: string; paidBy: string; splitBetween: string[] }) {
+  const { people } = useData();
+  const value = Number(amount.replace(",", "."));
+  if (!value || value <= 0 || splitBetween.length === 0) return null;
+  const shares = splitCents({ amount: Math.round(value * 100) / 100, paidBy, splitBetween });
+  const byId = Object.fromEntries(people.map((p) => [p.id, p]));
+  const even = new Set(Object.values(shares)).size === 1;
+  return (
+    <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+      {even ? (
+        <>
+          <span className="font-semibold text-foreground">{fmtEurCents(Object.values(shares)[0]! / 100)}</span> para cada um
+        </>
+      ) : (
+        <>
+          Não dá certo ao cêntimo:{" "}
+          {Object.entries(shares)
+            .map(([pid, c]) => `${byId[pid]?.name ?? pid} ${fmtEurCents(c / 100)}`)
+            .join(" · ")}
+        </>
+      )}
+    </p>
   );
 }
 
