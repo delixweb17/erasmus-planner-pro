@@ -107,6 +107,18 @@ export interface ClassSlot {
   people: PersonId[];
 }
 
+/** Exame com data marcada. */
+export interface Exam {
+  id: string;
+  subject: string;
+  /** ISO yyyy-mm-dd */
+  date: string;
+  /** "HH:MM" */
+  time?: string | undefined;
+  room?: string | undefined;
+  people: PersonId[];
+}
+
 export interface AppData {
   version: 1;
   people: Person[];
@@ -119,6 +131,8 @@ export interface AppData {
   recurring: RecurringSaving[];
   /** Horário semanal da universidade */
   timetable: ClassSlot[];
+  /** Datas dos exames */
+  exams: Exam[];
   savingsGoal: number;
   savingsDeadline: string;
 }

@@ -106,10 +106,13 @@ export function TripPeriodBadges({ trip }: { trip: Pick<Trip, "startDate" | "end
 
 /** Devolve uma função que diz em que períodos (aulas/exames) uma viagem faz faltar, tendo em conta o horário. */
 export function useTripConflicts() {
-  const timetable = useStore().data?.timetable;
+  const data = useStore().data;
+  const timetable = data?.timetable;
+  const exams = data?.exams;
   return useCallback(
-    (trip: Pick<Trip, "startDate" | "endDate" | "participants">) => tripConflicts(trip, timetable ?? []),
-    [timetable],
+    (trip: Pick<Trip, "startDate" | "endDate" | "participants">) =>
+      tripConflicts(trip, timetable ?? [], exams ?? []),
+    [timetable, exams],
   );
 }
 

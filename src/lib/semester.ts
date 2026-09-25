@@ -1,4 +1,4 @@
-import type { ClassSlot, PersonId, Trip } from "@/data/types";
+import type { ClassSlot, Exam, PersonId, Trip } from "@/data/types";
 
 export type PeriodKind = "aulas" | "pausa" | "exames";
 
@@ -73,17 +73,35 @@ export function missedClasses(
   return out;
 }
 
+/** Exames de quem vai que calham durante a viagem. */
+export function missedExams(trip: Pick<Trip, "startDate" | "endDate" | "participants">, exams: Exam[]) {
+  return exams
+    .filter(
+      (e) =>
+        e.date >= trip.startDate &&
+        e.date <= trip.endDate &&
+        e.people.some((p) => trip.participants.includes(p)),
+    )
+    .sort((a, b) => (a.date + (a.time ?? "")).localeCompare(b.date + (b.time ?? "")));
+}
+
 /**
  * Períodos em que a viagem faz faltar (aulas ou exames).
- * Com horário preenchido, "aulas" só conta se a viagem apanhar aulas de quem vai.
+ * Com horário preenchido, "aulas" só conta se a viagem apanhar aulas de quem vai;
+ * com exames marcados, "exames" só conta se apanhar o dia de um exame de quem vai.
  */
 export function tripConflicts(
   trip: Pick<Trip, "startDate" | "endDate" | "participants">,
   timetable: ClassSlot[] = [],
+  exams: Exam[] = [],
 ) {
-  const kinds = tripPeriods(trip).filter((k) => k === "aulas" || k === "exames");
-  if (timetable.length === 0) return kinds;
-  return kinds.filter((k) => k !== "aulas" || missedClasses(trip, timetable).length > 0);
+  const conflicts: ("aulas" | "exames")[] = [];
+  const periods = tripPeriods(trip);
+  if (periods.includes("aulas") && (timetable.length === 0 || missedClasses(trip, timetable).length > 0))
+    conflicts.push("aulas");
+  if (exams.length > 0 ? missedExams(trip, exams).length > 0 : periods.includes("exames"))
+    conflicts.push("exames");
+  return conflicts;
 }
 
 export function tripDays(trip: Pick<Trip, "startDate" | "endDate">) {

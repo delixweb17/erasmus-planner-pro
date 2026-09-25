@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useData, useStore } from "@/data/store";
-import type { ClassSlot, Expense, ExpenseCategory, RecurringSaving, Trip, TripStatus } from "@/data/types";
+import type { ClassSlot, Exam, Expense, ExpenseCategory, RecurringSaving, Trip, TripStatus } from "@/data/types";
 import { NumberStepper, STATUS_LABEL, PersonAvatar } from "@/components/bits";
 import { PISA } from "@/data/seed";
 import { DatePicker } from "@/components/DatePicker";
@@ -23,7 +23,7 @@ import { Loader2, MapPin } from "lucide-react";
 import { addMonths, lastMonthBefore } from "@/data/repository";
 import { recurringMonths } from "@/lib/finance";
 import { fmtEur } from "@/lib/format";
-import { WEEKDAY_LABEL, todayISO } from "@/lib/semester";
+import { PERIODS, WEEKDAY_LABEL, todayISO } from "@/lib/semester";
 import { cn } from "@/lib/utils";
 
 export const CATEGORY_LABEL: Record<ExpenseCategory, string> = {
@@ -820,6 +820,123 @@ export function ClassFormDialog({
                 Cancelar
               </Button>
               <Button type="submit">{slot ? "Guardar" : "Adicionar"}</Button>
+            </div>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function ExamFormDialog({
+  open,
+  onOpenChange,
+  exam,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  exam?: Exam | null;
+}) {
+  const { addExam, updateExam, removeExam, activeProfile } = useStore();
+  const { people } = useData();
+  const examsStart = PERIODS.find((p) => p.kind === "exames")?.start ?? todayISO();
+  const blank = () => ({
+    subject: exam?.subject ?? "",
+    date: exam?.date ?? examsStart,
+    time: exam?.time ?? "",
+    room: exam?.room ?? "",
+    people: exam?.people ?? (activeProfile ? [activeProfile] : people.map((p) => p.id)),
+  });
+  const [form, setForm] = useState(blank);
+
+  useEffect(() => {
+    if (open) setForm(blank());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, exam]);
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.subject.trim()) {
+      toast.error("Diz de que disciplina é o exame.");
+      return;
+    }
+    if (form.people.length === 0) {
+      toast.error("Escolhe quem faz este exame.");
+      return;
+    }
+    const payload = {
+      subject: form.subject.trim(),
+      date: form.date,
+      time: form.time || undefined,
+      room: form.room.trim() || undefined,
+      people: form.people,
+    };
+    if (exam) updateExam(exam.id, payload);
+    else addExam(payload);
+    toast.success(exam ? "Exame atualizado." : "Exame marcado.");
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-display text-2xl">{exam ? "Editar exame" : "Novo exame"}</DialogTitle>
+          <DialogDescription>Uma viagem que apanhe este dia fica assinalada para quem faz o exame.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4">
+          <Field label="Disciplina">
+            <Input
+              value={form.subject}
+              onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
+              placeholder="Ex.: Analisi Matematica"
+              autoFocus
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Dia">
+              <DatePicker semester aria-label="Dia do exame" value={form.date} onChange={(v) => setForm((f) => ({ ...f, date: v }))} />
+            </Field>
+            <Field label="Hora">
+              <Choice
+                value={form.time}
+                onChange={(v) => setForm((f) => ({ ...f, time: v }))}
+                options={[{ value: "", label: "Sem hora" }, ...TIMES.map((t) => ({ value: t, label: t }))]}
+              />
+            </Field>
+          </div>
+          <Field label="Sala">
+            <Input
+              value={form.room}
+              onChange={(e) => setForm((f) => ({ ...f, room: e.target.value }))}
+              placeholder="Opcional"
+            />
+          </Field>
+          <Field label="Quem faz este exame">
+            <PeoplePicker value={form.people} onChange={(v) => setForm((f) => ({ ...f, people: v }))} />
+          </Field>
+          <DialogFooter className="gap-2 sm:justify-between">
+            {exam ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="text-destructive hover:text-destructive"
+                onClick={() => {
+                  removeExam(exam.id);
+                  toast.success("Exame apagado.");
+                  onOpenChange(false);
+                }}
+              >
+                Apagar
+              </Button>
+            ) : (
+              <span />
+            )}
+            <div className="flex gap-2">
+              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit">{exam ? "Guardar" : "Marcar"}</Button>
             </div>
           </DialogFooter>
         </form>

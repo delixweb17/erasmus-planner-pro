@@ -1,14 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { MapPin, Plus } from "lucide-react";
+import { Clock, MapPin, Plus } from "lucide-react";
 import { useState } from "react";
 import { PageHeader } from "@/components/AppShell";
 import { AvatarStack, EmptyState, Loaded, PersonAvatar, Section } from "@/components/bits";
-import { ClassFormDialog } from "@/components/forms";
+import { ClassFormDialog, ExamFormDialog } from "@/components/forms";
 import { Button } from "@/components/ui/button";
 import { useData, useStore } from "@/data/store";
-import type { ClassSlot, PersonId, Trip } from "@/data/types";
-import { fmtRange } from "@/lib/format";
-import { PERIODS, WEEKDAY_LABEL, classesOn, periodForDate, toISODate, type PeriodKind } from "@/lib/semester";
+import type { ClassSlot, Exam, PersonId, Trip } from "@/data/types";
+import { fmtRange, fmtShort } from "@/lib/format";
+import { PERIODS, WEEKDAY_LABEL, WEEKDAY_SHORT, classesOn, weekdayOf, periodForDate, toISODate, type PeriodKind } from "@/lib/semester";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/calendario")({
@@ -59,7 +59,7 @@ const PERIOD_DOT: Record<PeriodKind, string> = {
 };
 
 function CalendarPage() {
-  const { trips, timetable, people } = useData();
+  const { trips, timetable, exams, people } = useData();
   const { activeProfile } = useStore();
   /** Horário de quem se está a ver: uma pessoa ou todos (null) */
   const [viewing, setViewing] = useState<PersonId | null>(activeProfile);
@@ -69,6 +69,11 @@ function CalendarPage() {
     weekday: 1,
   });
   const openClass = (slot: ClassSlot | null, weekday = 1) => setDialog({ open: true, slot, weekday });
+  const [examDialog, setExamDialog] = useState<{ open: boolean; exam: Exam | null }>({ open: false, exam: null });
+  const openExam = (exam: Exam | null) => setExamDialog({ open: true, exam });
+  const visibleExams = (viewing ? exams.filter((e) => e.people.includes(viewing)) : exams)
+    .slice()
+    .sort((a, b) => (a.date + (a.time ?? "")).localeCompare(b.date + (b.time ?? "")));
 
   const visible = viewing ? timetable.filter((c) => c.people.includes(viewing)) : timetable;
   const days = timetable.some((c) => c.weekday === 6) ? [1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 5];
@@ -85,6 +90,29 @@ function CalendarPage() {
             : "Fundo azul: aulas. Verde: pausa. Vermelho: exames. As barras são viagens — toca para abrir."
         }
       />
+
+      {(timetable.length > 0 || exams.length > 0) && (
+      <div className="fade-up mb-4 flex flex-wrap items-center gap-1.5">
+        <span className="mr-1 text-xs text-muted-foreground">Ver:</span>
+        {[null, ...people.map((p) => p.id)].map((id) => (
+          <button
+            key={id ?? "todos"}
+            type="button"
+            onClick={() => setViewing(id)}
+            className={cn(
+              "flex cursor-pointer items-center gap-1.5 rounded-full border py-1 text-xs font-medium transition-colors",
+              id ? "pl-1 pr-2.5" : "px-3",
+              viewing === id
+                ? "border-primary bg-primary/10 text-foreground"
+                : "text-muted-foreground hover:bg-accent",
+            )}
+          >
+            {id && <PersonAvatar person={byId[id]} size="sm" />}
+            {id ? byId[id]?.name : "Todos"}
+          </button>
+        ))}
+      </div>
+      )}
 
       <Section
         title="Horário semanal"
@@ -109,25 +137,6 @@ function CalendarPage() {
           />
         ) : (
           <>
-            <div className="mb-3 flex flex-wrap gap-1.5">
-              {[null, ...people.map((p) => p.id)].map((id) => (
-                <button
-                  key={id ?? "todos"}
-                  type="button"
-                  onClick={() => setViewing(id)}
-                  className={cn(
-                    "flex cursor-pointer items-center gap-1.5 rounded-full border py-1 text-xs font-medium transition-colors",
-                    id ? "pl-1 pr-2.5" : "px-3",
-                    viewing === id
-                      ? "border-primary bg-primary/10 text-foreground"
-                      : "text-muted-foreground hover:bg-accent",
-                  )}
-                >
-                  {id && <PersonAvatar person={byId[id]} size="sm" />}
-                  {id ? byId[id]?.name : "Todos"}
-                </button>
-              ))}
-            </div>
             <div className={cn("grid gap-3", days.length === 6 ? "md:grid-cols-6" : "md:grid-cols-5")}>
               {days.map((wd) => {
                 const slots = visible.filter((c) => c.weekday === wd).sort((a, b) => a.start.localeCompare(b.start));
@@ -176,6 +185,66 @@ function CalendarPage() {
           </>
         )}
       </Section>
+
+      <Section
+        title="Exames"
+        className="mb-10"
+        action={
+          exams.length > 0 && (
+            <Button variant="outline" size="sm" onClick={() => openExam(null)}>
+              <Plus /> Exame
+            </Button>
+          )
+        }
+      >
+        {exams.length === 0 ? (
+          <EmptyState
+            title="Ainda sem exames marcados."
+            hint="Marca o dia de cada exame. Enquanto não houver nenhum, qualquer viagem entre 7 jan e 11 fev conta como falta."
+            action={
+              <Button variant="outline" size="sm" onClick={() => openExam(null)}>
+                <Plus /> Primeiro exame
+              </Button>
+            }
+          />
+        ) : visibleExams.length === 0 ? (
+          <p className="card-soft px-4 py-3 text-sm text-muted-foreground">Sem exames para esta pessoa.</p>
+        ) : (
+          <ul className="card-soft divide-y">
+            {visibleExams.map((e) => (
+              <li key={e.id}>
+                <button
+                  type="button"
+                  onClick={() => openExam(e)}
+                  className="flex w-full cursor-pointer items-center gap-4 px-4 py-3 text-left text-sm transition-colors hover:bg-accent/50"
+                >
+                  <span className="flex w-12 shrink-0 flex-col items-center rounded-lg border border-exames/30 bg-exames/10 py-1 text-exames">
+                    <span className="text-[10px] font-semibold uppercase leading-tight">{WEEKDAY_SHORT[weekdayOf(e.date)]}</span>
+                    <span className="tabular font-display text-lg font-semibold leading-tight">{Number(e.date.slice(8))}</span>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-semibold">{e.subject}</span>
+                    <span className="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
+                      <span>{fmtShort(e.date)}</span>
+                      {e.time && (
+                        <span className="flex items-center gap-1">
+                          <Clock className="size-3" /> {e.time}
+                        </span>
+                      )}
+                      {e.room && (
+                        <span className="flex items-center gap-1">
+                          <MapPin className="size-3" /> {e.room}
+                        </span>
+                      )}
+                    </span>
+                  </span>
+                  <AvatarStack people={e.people.map((id) => byId[id]).filter((p) => !!p)} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
       <div className="fade-up mb-6 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground">
         {PERIODS.map((p) => (
           <span key={p.kind} className="flex items-center gap-1.5">
@@ -190,7 +259,15 @@ function CalendarPage() {
 
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         {MONTHS.map(({ y, m }) => (
-          <Month key={`${y}-${m}`} year={y} month={m} trips={trips} timetable={visible} hasTimetable={timetable.length > 0} />
+          <Month
+            key={`${y}-${m}`}
+            year={y}
+            month={m}
+            trips={trips}
+            timetable={visible}
+            hasTimetable={timetable.length > 0}
+            exams={visibleExams}
+          />
         ))}
       </div>
 
@@ -199,6 +276,11 @@ function CalendarPage() {
         onOpenChange={(open) => setDialog((d) => ({ ...d, open }))}
         slot={dialog.slot}
         defaultWeekday={dialog.weekday}
+      />
+      <ExamFormDialog
+        open={examDialog.open}
+        onOpenChange={(open) => setExamDialog((d) => ({ ...d, open }))}
+        exam={examDialog.exam}
       />
     </>
   );
@@ -210,12 +292,14 @@ function Month({
   trips,
   timetable,
   hasTimetable,
+  exams,
 }: {
   year: number;
   month: number;
   trips: Trip[];
   timetable: ClassSlot[];
   hasTimetable: boolean;
+  exams: Exam[];
 }) {
   const first = new Date(year, month, 1);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -239,6 +323,7 @@ function Month({
         {cells.map((iso, i) => {
           if (!iso) return <div key={i} />;
           const classes = classesOn(iso, timetable);
+          const dayExams = exams.filter((e) => e.date === iso);
           // Com horário, o fundo azul só aparece nos dias em que há mesmo aulas.
           const period = periodForDate(iso) === "aulas" && hasTimetable && classes.length === 0 ? null : periodForDate(iso);
           const dayTrips = trips.filter((t) => iso >= t.startDate && iso <= t.endDate);
@@ -249,11 +334,19 @@ function Month({
           return (
             <div
               key={iso}
-              title={classes.length ? classes.map((c) => `${c.start} ${c.subject}`).join("\n") : undefined}
+              title={
+                classes.length || dayExams.length
+                  ? [
+                      ...dayExams.map((e) => `Exame${e.time ? ` ${e.time}` : ""}: ${e.subject}`),
+                      ...classes.map((c) => `${c.start} ${c.subject}`),
+                    ].join("\n")
+                  : undefined
+              }
               className={cn(
                 "relative flex h-14 flex-col rounded-md p-1 text-[11px]",
                 period && PERIOD_BG[period],
                 classes.length > 0 && "bg-aulas/15",
+                dayExams.length > 0 && "bg-exames/25 ring-1 ring-inset ring-exames/60",
               )}
             >
               <span className={cn("tabular leading-none", weekday >= 5 && "text-muted-foreground")}>

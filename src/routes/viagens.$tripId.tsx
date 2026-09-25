@@ -20,7 +20,15 @@ import { useData, useStore } from "@/data/store";
 import type { Expense } from "@/data/types";
 import { tripCost } from "@/lib/finance";
 import { fmtEur, fmtEurCents, fmtRange, fmtShort, pct } from "@/lib/format";
-import { PERIOD_LABEL, WEEKDAY_SHORT, missedClasses, tripConflicts, tripDays, weekdayOf } from "@/lib/semester";
+import {
+  PERIOD_LABEL,
+  WEEKDAY_SHORT,
+  missedClasses,
+  missedExams,
+  tripConflicts,
+  tripDays,
+  weekdayOf,
+} from "@/lib/semester";
 
 export const Route = createFileRoute("/viagens/$tripId")({
   head: () => ({
@@ -36,7 +44,7 @@ export const Route = createFileRoute("/viagens/$tripId")({
 
 function TripDetail() {
   const { tripId } = Route.useParams();
-  const { trips, expenses, people, timetable } = useData();
+  const { trips, expenses, people, timetable, exams } = useData();
   const { removeTrip, removeExpense } = useStore();
   const navigate = useNavigate();
   const [editOpen, setEditOpen] = useState(false);
@@ -63,8 +71,9 @@ function TripDetail() {
     .sort((a, b) => b.date.localeCompare(a.date));
   const participants = people.filter((p) => trip.participants.includes(p.id));
   const byId = Object.fromEntries(people.map((p) => [p.id, p]));
-  const conflicts = tripConflicts(trip, timetable);
+  const conflicts = tripConflicts(trip, timetable, exams);
   const missed = missedClasses(trip, timetable);
+  const missedExamList = missedExams(trip, exams);
   const days = tripDays(trip);
   const remaining = cost.budgetTotal - cost.spentTotal;
 
@@ -116,6 +125,14 @@ function TripDetail() {
             Faltas a {missed.length} {missed.length === 1 ? "aula" : "aulas"}:{" "}
             {missed
               .map((m) => `${m.slot.subject} (${WEEKDAY_SHORT[weekdayOf(m.date)]} ${fmtShort(m.date)}, ${m.slot.start})`)
+              .join(" · ")}
+          </p>
+        )}
+        {missedExamList.length > 0 && (
+          <p className="basis-full text-xs font-medium text-exames">
+            Apanha {missedExamList.length === 1 ? "o exame" : `${missedExamList.length} exames`}:{" "}
+            {missedExamList
+              .map((e) => `${e.subject} (${WEEKDAY_SHORT[weekdayOf(e.date)]} ${fmtShort(e.date)}${e.time ? `, ${e.time}` : ""})`)
               .join(" · ")}
           </p>
         )}

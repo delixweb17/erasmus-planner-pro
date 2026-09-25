@@ -12,6 +12,7 @@ import type {
   AppData,
   Booking,
   ClassSlot,
+  Exam,
   Expense,
   Person,
   RecurringSaving,
@@ -46,6 +47,9 @@ interface StoreActions {
   addClass: (c: Omit<ClassSlot, "id">) => void;
   updateClass: (id: string, patch: Partial<ClassSlot>) => void;
   removeClass: (id: string) => void;
+  addExam: (e: Omit<Exam, "id">) => void;
+  updateExam: (id: string, patch: Partial<Exam>) => void;
+  removeExam: (id: string) => void;
   addBooking: (b: Omit<Booking, "id">) => void;
   updateBooking: (id: string, patch: Partial<Booking>) => void;
   removeBooking: (id: string) => void;
@@ -145,6 +149,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
           timetable: d.timetable.map((c) => (c.id === id ? { ...c, ...patch } : c)),
         })),
       removeClass: (id) => mutate((d) => ({ ...d, timetable: d.timetable.filter((c) => c.id !== id) })),
+      addExam: (e) => mutate((d) => ({ ...d, exams: [...d.exams, { ...e, id: newId() }] })),
+      updateExam: (id, patch) =>
+        mutate((d) => ({ ...d, exams: d.exams.map((e) => (e.id === id ? { ...e, ...patch } : e)) })),
+      removeExam: (id) => mutate((d) => ({ ...d, exams: d.exams.filter((e) => e.id !== id) })),
       addBooking: (b) => mutate((d) => ({ ...d, bookings: [...d.bookings, { ...b, id: newId() }] })),
       updateBooking: (id, patch) =>
         mutate((d) => ({ ...d, bookings: d.bookings.map((b) => (b.id === id ? { ...b, ...patch } : b)) })),

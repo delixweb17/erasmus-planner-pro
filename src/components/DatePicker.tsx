@@ -42,6 +42,9 @@ export function DatePicker({
 }) {
   const [open, setOpen] = useState(false);
   const timetable = useStore().data?.timetable ?? [];
+  const exams = useStore().data?.exams ?? [];
+  // Com exames marcados, só se marcam esses dias.
+  const exames = exams.length > 0 ? exams.map((e) => parse(e.date)) : periodRange("exames");
   // Com horário, só se marcam os dias em que há mesmo aulas.
   const aulas =
     timetable.length > 0 ? (d: Date) => classesOn(toISODate(d), timetable).length > 0 : periodRange("aulas");
@@ -93,7 +96,7 @@ export function DatePicker({
           classNames={{ caption_label: "select-none text-sm font-semibold capitalize" }}
           {...(semester
             ? {
-                modifiers: { aulas, exames: periodRange("exames") },
+                modifiers: { aulas, exames },
                 modifiersClassNames: {
                   aulas: cn(dot, "after:bg-aulas"),
                   exames: cn(dot, "after:bg-exames"),
