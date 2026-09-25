@@ -55,8 +55,10 @@ interface StoreActions {
   removeSettlement: (id: string) => void;
   /** Passa as contas abertas (já quites) para o histórico */
   closeAccounts: () => void;
-  /** Apaga de vez as despesas e acertos fechados numa data (não mexe nos saldos) */
-  removeClosed: (closedAt: string) => void;
+  /** Apaga de vez uma despesa já fechada (não mexe nos saldos) */
+  removeClosedExpense: (id: string) => void;
+  /** Apaga de vez todas as contas fechadas */
+  clearClosed: () => void;
   setSavingsGoal: (goal: number) => void;
   addRecurring: (r: Omit<RecurringSaving, "id">) => void;
   updateRecurring: (id: string, patch: Partial<RecurringSaving>) => void;
@@ -234,11 +236,24 @@ export function DataProvider({ children }: { children: ReactNode }) {
           return canCloseAccounts(next) ? closeAccounts(next, s.date) : next;
         }),
       closeAccounts: () => mutate((d) => (canCloseAccounts(d) ? closeAccounts(d, todayISO()) : d)),
-      removeClosed: (closedAt) =>
+      removeClosedExpense: (id) =>
+        mutate((d) => {
+          const closedAt = d.expenses.find((e) => e.id === id)?.closedAt;
+          if (!closedAt) return d;
+          const expenses = d.expenses.filter((e) => e.id !== id);
+          // Sem despesas desse fecho, os acertos dele já não servem para nada.
+          const orphan = !expenses.some((e) => e.closedAt === closedAt);
+          return {
+            ...d,
+            expenses,
+            settlements: orphan ? d.settlements.filter((s) => s.closedAt !== closedAt) : d.settlements,
+          };
+        }),
+      clearClosed: () =>
         mutate((d) => ({
           ...d,
-          expenses: d.expenses.filter((e) => e.closedAt !== closedAt),
-          settlements: d.settlements.filter((s) => s.closedAt !== closedAt),
+          expenses: d.expenses.filter((e) => !e.closedAt),
+          settlements: d.settlements.filter((s) => !s.closedAt),
         })),
       removeSettlement: (id) =>
         mutate((d) => ({ ...d, settlements: d.settlements.filter((s) => s.id !== id) })),
