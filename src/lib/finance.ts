@@ -14,19 +14,16 @@ export const round2 = (n: number) => Math.round(n * 100) / 100;
 
 const toCents = (euros: number) => Math.round(euros * 100);
 
-/**
- * Diferenças até este valor (em cêntimos) não pedem transferência: são restos de arredondamento
- * de acertos registados antes de as contas serem feitas ao cêntimo.
- */
+/** Diferenças até este valor (em cêntimos) não pedem transferência nem aparecem como dívida. */
 export const SETTLED_CENTS = 4;
 
 /** Um saldo que já não vale uma transferência. */
 export const isSettled = (euros: number) => Math.abs(toCents(euros)) <= SETTLED_CENTS;
 
 /**
- * Parte de cada pessoa numa despesa, em cêntimos, somando sempre o valor exato.
- * Quando a divisão não dá certa, os cêntimos que sobram vão primeiro para quem pagou
- * (se entrar na divisão) e depois pela ordem da lista — sempre da mesma forma.
+ * Parte de cada pessoa numa despesa, em cêntimos: todos pagam o mesmo, arredondado para baixo.
+ * Os cêntimos que sobram ficam por conta de quem pagou (é a parte dele se entrar na divisão;
+ * se não entrar, simplesmente não os recebe). Assim nunca ficam cêntimos por acertar.
  */
 export function splitCents(expense: Pick<Expense, "amount" | "paidBy" | "splitBetween">): Record<PersonId, number> {
   const people = [...new Set(expense.splitBetween)];
@@ -34,14 +31,8 @@ export function splitCents(expense: Pick<Expense, "amount" | "paidBy" | "splitBe
   if (people.length === 0) return out;
   const total = toCents(expense.amount);
   const base = Math.floor(total / people.length);
-  let rest = total - base * people.length;
-  const order = people.includes(expense.paidBy)
-    ? [expense.paidBy, ...people.filter((p) => p !== expense.paidBy)]
-    : people;
-  for (const pid of order) {
-    out[pid] = base + (rest > 0 ? 1 : 0);
-    if (rest > 0) rest--;
-  }
+  for (const pid of people) out[pid] = base;
+  if (people.includes(expense.paidBy)) out[expense.paidBy] = total - base * (people.length - 1);
   return out;
 }
 

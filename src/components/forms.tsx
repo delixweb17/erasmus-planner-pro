@@ -21,7 +21,7 @@ import { DatePicker } from "@/components/DatePicker";
 import { PlaceSearch, searchPlaces, type Place } from "@/components/PlaceSearch";
 import { Loader2, MapPin } from "lucide-react";
 import { addMonths, lastMonthBefore } from "@/data/repository";
-import { recurringMonths, splitCents } from "@/lib/finance";
+import { recurringMonths } from "@/lib/finance";
 import { fmtEur, fmtEurCents } from "@/lib/format";
 import { PERIODS, WEEKDAY_LABEL, todayISO } from "@/lib/semester";
 import { cn } from "@/lib/utils";
@@ -694,23 +694,15 @@ function SplitPreview({ amount, paidBy, splitBetween }: { amount: string; paidBy
   const { people } = useData();
   const value = Number(amount.replace(",", "."));
   if (!value || value <= 0 || splitBetween.length === 0) return null;
-  const shares = splitCents({ amount: Math.round(value * 100) / 100, paidBy, splitBetween });
   const byId = Object.fromEntries(people.map((p) => [p.id, p]));
-  const even = new Set(Object.values(shares)).size === 1;
+  const each = Math.floor(Math.round(value * 100) / splitBetween.length);
+  const leftover = Math.round(value * 100) - each * splitBetween.length;
+  const payer = byId[paidBy]?.name ?? "quem pagou";
   return (
     <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
-      {even ? (
-        <>
-          <span className="font-semibold text-foreground">{fmtEurCents(Object.values(shares)[0]! / 100)}</span> para cada um
-        </>
-      ) : (
-        <>
-          Não dá certo ao cêntimo:{" "}
-          {Object.entries(shares)
-            .map(([pid, c]) => `${byId[pid]?.name ?? pid} ${fmtEurCents(c / 100)}`)
-            .join(" · ")}
-        </>
-      )}
+      <span className="font-semibold text-foreground">{fmtEurCents(each / 100)}</span> para cada um
+      {leftover > 0 &&
+        ` — ${leftover === 1 ? "o cêntimo que sobra fica" : `os ${leftover} cêntimos que sobram ficam`} por conta de ${payer}.`}
     </p>
   );
 }
