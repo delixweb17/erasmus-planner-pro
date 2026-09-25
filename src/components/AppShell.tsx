@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Map as MapIcon,
   LogOut,
+  MessageCircle,
   Moon,
   PiggyBank,
   Plane,
@@ -14,6 +15,7 @@ import {
 import type { ReactNode } from "react";
 import { useConfirm } from "@/components/Confirm";
 import { useAuth } from "@/data/auth";
+import { useChat } from "@/data/chat";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
@@ -22,9 +24,28 @@ const NAV = [
   { to: "/viagens", label: "Viagens", icon: Plane },
   { to: "/despesas", label: "Despesas", icon: Receipt },
   { to: "/poupanca", label: "Poupança", icon: PiggyBank },
+  { to: "/chat", label: "Chat", icon: MessageCircle },
   { to: "/calendario", label: "Calendário", icon: CalendarDays },
   { to: "/mapa", label: "Mapa", icon: MapIcon },
 ] as const;
+
+// No telemóvel não cabem todos: o Mapa sai da barra (abre-se a partir das Viagens).
+const NAV_MOBILE = NAV.filter((n) => n.to !== "/mapa");
+
+function UnreadBadge({ className }: { className?: string }) {
+  const { unread } = useChat();
+  if (unread === 0) return null;
+  return (
+    <span
+      className={cn(
+        "tabular inline-flex min-w-4.5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-4.5 text-primary-foreground",
+        className,
+      )}
+    >
+      {unread > 99 ? "99+" : unread}
+    </span>
+  );
+}
 
 function ThemeToggle({ className }: { className?: string }) {
   const { theme, toggle } = useTheme();
@@ -88,6 +109,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             >
               <Icon className="size-4" />
               {label}
+              {to === "/chat" && <UnreadBadge className="ml-auto" />}
             </Link>
           ))}
         </nav>
@@ -132,15 +154,16 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* Navegação inferior (mobile) */}
       <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t bg-background/90 backdrop-blur lg:hidden">
-        {NAV.map(({ to, label, icon: Icon, ...rest }) => (
+        {NAV_MOBILE.map(({ to, label, icon: Icon, ...rest }) => (
           <Link
             key={to}
             to={to}
             activeOptions={{ exact: "exact" in rest && rest.exact }}
-            className="flex flex-col items-center gap-1 py-2 text-[10px] font-medium text-muted-foreground data-[status=active]:text-primary"
+            className="relative flex flex-col items-center gap-1 py-2 text-[10px] font-medium text-muted-foreground data-[status=active]:text-primary"
           >
             <Icon className="size-5" />
             {label}
+            {to === "/chat" && <UnreadBadge className="absolute left-1/2 top-1 ml-1.5" />}
           </Link>
         ))}
       </nav>

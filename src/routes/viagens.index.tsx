@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Plus } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Map as MapIcon, Plus } from "lucide-react";
 import { useState } from "react";
 import { PageHeader } from "@/components/AppShell";
 import { EmptyState, Loaded } from "@/components/bits";
@@ -44,9 +44,16 @@ function TripsPage() {
         title="Viagens"
         description={`${trips.length} viagens, ${totalDays} dias fora de Pisa, ${fmtEur(totalBudgetPerPerson(trips))} de orçamento por pessoa.`}
         actions={
-          <Button onClick={() => setOpen(true)}>
-            <Plus /> Nova viagem
-          </Button>
+          <>
+            <Button variant="outline" asChild>
+              <Link to="/mapa">
+                <MapIcon /> Mapa
+              </Link>
+            </Button>
+            <Button onClick={() => setOpen(true)}>
+              <Plus /> Nova viagem
+            </Button>
+          </>
         }
       />
 

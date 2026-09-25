@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, MessageCircle, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
@@ -17,9 +17,11 @@ import { CATEGORY_LABEL, ExpenseFormDialog, TripFormDialog } from "@/components/
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/Confirm";
 import { BookingsSection } from "@/components/Bookings";
+import { useChat } from "@/data/chat";
 import { useData, useStore } from "@/data/store";
 import type { Expense } from "@/data/types";
 import { tripCost } from "@/lib/finance";
+import { messageAboutTrip, plainText } from "@/lib/mentions";
 import { fmtEur, fmtEurCents, fmtRange, fmtShort, pct } from "@/lib/format";
 import {
   PERIOD_LABEL,
@@ -112,6 +114,11 @@ function TripDetail() {
         description={trip.cities.join(" · ")}
         actions={
           <>
+            <Button variant="outline" asChild>
+              <Link to="/chat" search={{ about: `trip:${trip.id}` }}>
+                <MessageCircle /> Falar sobre isto
+              </Link>
+            </Button>
             <Button variant="outline" onClick={() => setEditOpen(true)}>
               <Pencil /> Editar
             </Button>
@@ -193,6 +200,15 @@ function TripDetail() {
                     </p>
                   </div>
                   <span className="tabular text-sm font-semibold">{fmtEurCents(e.amount)}</span>
+                  <Link
+                    to="/chat"
+                    search={{ about: `expense:${e.id}` }}
+                    aria-label="Falar sobre esta despesa"
+                    title="Falar sobre esta despesa"
+                    className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                  >
+                    <MessageCircle className="size-3.5" />
+                  </Link>
                   <button
                     type="button"
                     aria-label="Editar despesa"
@@ -216,6 +232,8 @@ function TripDetail() {
         </Section>
 
         <div className="space-y-10">
+          <TripConversation tripId={trip.id} />
+
           <Section title="Custo por pessoa">
             <div className="card-soft space-y-3 p-5">
               {participants.map((p) => {
@@ -262,5 +280,46 @@ function TripDetail() {
       <TripFormDialog open={editOpen} onOpenChange={setEditOpen} trip={trip} />
       <ExpenseFormDialog open={expenseOpen} onOpenChange={setExpenseOpen} expense={editingExpense} defaultTripId={trip.id} />
     </>
+  );
+}
+
+/** Últimas mensagens do chat sobre esta viagem (ou sobre despesas e reservas dela). */
+function TripConversation({ tripId }: { tripId: string }) {
+  const data = useData();
+  const { messages } = useChat();
+  const about = messages.filter((m) => !m.deleted && messageAboutTrip(m.body, tripId, data)).slice(-3);
+  const byId = Object.fromEntries(data.people.map((p) => [p.id, p]));
+  return (
+    <Section
+      title="Conversa"
+      action={
+        <Link to="/chat" search={{ trip: tripId }} className="text-sm font-medium text-primary hover:underline">
+          Abrir no chat
+        </Link>
+      }
+    >
+      {about.length === 0 ? (
+        <Link
+          to="/chat"
+          search={{ about: `trip:${tripId}` }}
+          className="card-soft flex items-center gap-3 border-dashed p-4 text-sm text-muted-foreground shadow-none transition-colors hover:bg-accent/40"
+        >
+          <MessageCircle className="size-4 shrink-0" />
+          Ainda ninguém falou desta viagem no chat. Começa a conversa.
+        </Link>
+      ) : (
+        <ul className="card-soft divide-y">
+          {about.map((m) => (
+            <li key={m.id} className="flex gap-2.5 px-4 py-3 text-sm">
+              <PersonAvatar person={byId[m.author]} size="sm" />
+              <p className="min-w-0 flex-1">
+                <span className="font-semibold">{byId[m.author]?.name}</span>{" "}
+                <span className="text-muted-foreground">{plainText(m.body, data)}</span>
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Section>
   );
 }

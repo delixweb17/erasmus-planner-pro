@@ -16,6 +16,7 @@ import { DataProvider } from "@/data/store";
 import { AuthProvider } from "@/data/auth";
 import { AuthGate } from "@/components/AuthScreens";
 import { ConfirmProvider } from "@/components/Confirm";
+import { ChatProvider } from "@/data/chat";
 import { AppShell } from "@/components/AppShell";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -139,10 +140,12 @@ function RootComponent() {
           <ConfirmProvider>
             <AuthGate>
               <DataProvider>
-                <AppShell>
-                  {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-                  <Outlet />
-                </AppShell>
+                <ChatProvider>
+                  <AppShell>
+                    {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+                    <Outlet />
+                  </AppShell>
+                </ChatProvider>
               </DataProvider>
             </AuthGate>
           </ConfirmProvider>

@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, Archive, Check, ChevronDown, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowRight, Archive, Check, ChevronDown, MessageCircle, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
@@ -209,6 +209,15 @@ function ExpensesPage() {
                 {openExpenses.map((e) => (
                   <li key={e.id} className="flex items-center gap-3 px-4 py-3">
                     <ExpenseLine e={e} byId={byId} tripById={tripById} />
+                    <Link
+                      to="/chat"
+                      search={{ about: `expense:${e.id}` }}
+                      aria-label="Falar sobre esta despesa"
+                      title="Falar sobre esta despesa"
+                      className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                    >
+                      <MessageCircle className="size-3.5" />
+                    </Link>
                     <button
                       type="button"
                       aria-label="Editar despesa"

@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CalendarioRouteImport } from './routes/calendario'
+import { Route as ChatRouteImport } from './routes/chat'
 import { Route as DefinicoesRouteImport } from './routes/definicoes'
 import { Route as DespesasRouteImport } from './routes/despesas'
 import { Route as MapaRouteImport } from './routes/mapa'
@@ -26,6 +27,11 @@ const IndexRoute = IndexRouteImport.update({
 const CalendarioRoute = CalendarioRouteImport.update({
   id: '/calendario',
   path: '/calendario',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChatRoute = ChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DefinicoesRoute = DefinicoesRouteImport.update({
@@ -62,6 +68,7 @@ const ViagensTripIdRoute = ViagensTripIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/calendario': typeof CalendarioRoute
+  '/chat': typeof ChatRoute
   '/definicoes': typeof DefinicoesRoute
   '/despesas': typeof DespesasRoute
   '/mapa': typeof MapaRoute
@@ -72,6 +79,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/calendario': typeof CalendarioRoute
+  '/chat': typeof ChatRoute
   '/definicoes': typeof DefinicoesRoute
   '/despesas': typeof DespesasRoute
   '/mapa': typeof MapaRoute
@@ -83,6 +91,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/calendario': typeof CalendarioRoute
+  '/chat': typeof ChatRoute
   '/definicoes': typeof DefinicoesRoute
   '/despesas': typeof DespesasRoute
   '/mapa': typeof MapaRoute
@@ -95,6 +104,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/calendario'
+    | '/chat'
     | '/definicoes'
     | '/despesas'
     | '/mapa'
@@ -105,6 +115,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/calendario'
+    | '/chat'
     | '/definicoes'
     | '/despesas'
     | '/mapa'
@@ -115,6 +126,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/calendario'
+    | '/chat'
     | '/definicoes'
     | '/despesas'
     | '/mapa'
@@ -126,6 +138,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CalendarioRoute: typeof CalendarioRoute
+  ChatRoute: typeof ChatRoute
   DefinicoesRoute: typeof DefinicoesRoute
   DespesasRoute: typeof DespesasRoute
   MapaRoute: typeof MapaRoute
@@ -148,6 +161,13 @@ declare module '@tanstack/react-router' {
       path: '/calendario'
       fullPath: '/calendario'
       preLoaderRoute: typeof CalendarioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chat': {
+      id: '/chat'
+      path: '/chat'
+      fullPath: '/chat'
+      preLoaderRoute: typeof ChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/definicoes': {
@@ -198,6 +218,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CalendarioRoute: CalendarioRoute,
+  ChatRoute: ChatRoute,
   DefinicoesRoute: DefinicoesRoute,
   DespesasRoute: DespesasRoute,
   MapaRoute: MapaRoute,
