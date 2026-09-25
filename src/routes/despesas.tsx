@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/AppShell";
 import { EmptyState, Loaded, PersonAvatar, Section, Stat } from "@/components/bits";
 import { CATEGORY_LABEL, ExpenseFormDialog } from "@/components/forms";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/Confirm";
 import { useData, useStore } from "@/data/store";
 import type { Expense, Person, Trip } from "@/data/types";
 import { canCloseAccounts, isSettled, netBalances, simplifyDebts, splitCents } from "@/lib/finance";
@@ -29,6 +30,7 @@ function ExpensesPage() {
   const { people, trips, expenses, settlements } = useData();
   const { removeExpense, addSettlement, removeSettlement, closeAccounts, removeClosedExpense, clearClosed } =
     useStore();
+  const confirm = useConfirm();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Expense | undefined>();
 
@@ -65,12 +67,19 @@ function ExpensesPage() {
     );
   };
 
-  const remove = (e: Expense) => {
-    const msg =
-      openSettlements.length > 0
-        ? `Apagar "${e.description}"?\n\nJá há acertos registados. Se esta despesa já foi paga, não a apagues: quando toda a gente ficar quite, ela passa sozinha para "Contas fechadas". Apagá-la agora muda as contas de toda a gente.`
-        : `Apagar "${e.description}"?`;
-    if (!confirm(msg)) return;
+  const remove = async (e: Expense) => {
+    const ok = await confirm({
+      title: `Apagar "${e.description}"?`,
+      ...(openSettlements.length > 0
+        ? {
+            description:
+              "Já há acertos registados. Se esta despesa já foi paga, não a apagues: quando toda a gente ficar quite, ela passa sozinha para “Contas fechadas”. Apagá-la agora muda as contas de toda a gente.",
+          }
+        : {}),
+      confirmLabel: "Apagar",
+      destructive: true,
+    });
+    if (!ok) return;
     removeExpense(e.id);
     toast.success("Despesa apagada.");
   };
@@ -230,11 +239,14 @@ function ExpensesPage() {
                   variant="ghost"
                   size="sm"
                   className="text-muted-foreground hover:text-destructive"
-                  onClick={() => {
+                  onClick={async () => {
                     if (
-                      !confirm(
-                        `Apagar todas as contas fechadas (${closed.length} ${closed.length === 1 ? "despesa" : "despesas"})?\n\nDesaparecem para toda a gente. Os saldos não mudam, mas as despesas deixam de contar para o custo das viagens.`,
-                      )
+                      !(await confirm({
+                        title: `Apagar todas as contas fechadas?`,
+                        description: `${closed.length} ${closed.length === 1 ? "despesa desaparece" : "despesas desaparecem"} para toda a gente. Os saldos não mudam, mas deixam de contar para o custo das viagens.`,
+                        confirmLabel: "Apagar todas",
+                        destructive: true,
+                      }))
                     )
                       return;
                     clearClosed();
@@ -260,8 +272,16 @@ function ExpensesPage() {
                         e={e}
                         byId={byId}
                         tripById={tripById}
-                        onDelete={() => {
-                          if (!confirm(`Apagar de vez "${e.description}"? Os saldos não mudam.`)) return;
+                        onDelete={async () => {
+                          if (
+                            !(await confirm({
+                              title: `Apagar de vez "${e.description}"?`,
+                              description: "Já estava acertada, por isso os saldos não mudam.",
+                              confirmLabel: "Apagar",
+                              destructive: true,
+                            }))
+                          )
+                            return;
                           removeClosedExpense(e.id);
                           toast.success("Despesa apagada.");
                         }}

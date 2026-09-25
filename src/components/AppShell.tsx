@@ -12,6 +12,7 @@ import {
   Sun,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { useConfirm } from "@/components/Confirm";
 import { useAuth } from "@/data/auth";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
@@ -44,11 +45,13 @@ function ThemeToggle({ className }: { className?: string }) {
 
 function SignOutButton({ className }: { className?: string }) {
   const { signOut, email } = useAuth();
+  const confirm = useConfirm();
   return (
     <button
       type="button"
-      onClick={() => {
-        if (confirm(`Sair da conta${email ? ` ${email}` : ""}?`)) void signOut();
+      onClick={async () => {
+        if (await confirm({ title: "Sair da conta?", description: email ?? undefined, confirmLabel: "Sair" }))
+          void signOut();
       }}
       aria-label="Sair da conta"
       title="Sair da conta"

@@ -15,6 +15,7 @@ import {
 } from "@/components/bits";
 import { CATEGORY_LABEL, ExpenseFormDialog, TripFormDialog } from "@/components/forms";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/Confirm";
 import { BookingsSection } from "@/components/Bookings";
 import { useData, useStore } from "@/data/store";
 import type { Expense } from "@/data/types";
@@ -47,6 +48,7 @@ function TripDetail() {
   const { trips, expenses, people, timetable, exams } = useData();
   const { removeTrip, removeExpense } = useStore();
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const [editOpen, setEditOpen] = useState(false);
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | undefined>();
@@ -84,8 +86,16 @@ function TripDetail() {
     }, {}),
   ).sort((a, b) => b[1] - a[1]);
 
-  const onDelete = () => {
-    if (!confirm(`Apagar a viagem "${trip.name}"? As despesas passam a gerais.`)) return;
+  const onDelete = async () => {
+    if (
+      !(await confirm({
+        title: `Apagar a viagem "${trip.name}"?`,
+        description: "As despesas desta viagem não se apagam: passam a despesas gerais.",
+        confirmLabel: "Apagar",
+        destructive: true,
+      }))
+    )
+      return;
     removeTrip(trip.id);
     toast.success("Viagem apagada.");
     navigate({ to: "/viagens" });

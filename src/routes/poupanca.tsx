@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/AppShell";
 import { BudgetBar, EmptyState, Loaded, PersonAvatar, Section, Stat } from "@/components/bits";
 import { ProfilePicker, SavingsFormDialog, monthLabel } from "@/components/forms";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/Confirm";
 import { useData, useStore } from "@/data/store";
 import {
   allSavings,
@@ -36,6 +37,7 @@ function SavingsPage() {
   const data = useData();
   const { people, savingsGoal, savingsDeadline, trips } = data;
   const { removeSavings, removeRecurring, activeProfile, groupSavingsTotal: total } = useStore();
+  const confirm = useConfirm();
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<"mensal" | "extra">("extra");
   const [editing, setEditing] = useState<RecurringSaving | null>(null);
@@ -196,12 +198,15 @@ function SavingsPage() {
                         type="button"
                         aria-label="Apagar depósito mensal"
                         className="cursor-pointer rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-destructive"
-                        onClick={() => {
+                        onClick={async () => {
                           if (
                             done === 0 ||
-                            confirm(
-                              `Apagar este depósito mensal? Os ${fmtEur(r.amount * done)} que já entraram também saem da tua poupança. Para parar sem apagar, edita o último mês.`,
-                            )
+                            (await confirm({
+                              title: "Apagar este depósito mensal?",
+                              description: `Os ${fmtEur(r.amount * done)} que já entraram também saem da tua poupança. Para parar sem apagar, edita o último mês.`,
+                              confirmLabel: "Apagar",
+                              destructive: true,
+                            }))
                           )
                             removeRecurring(r.id);
                         }}

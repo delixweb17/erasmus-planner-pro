@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useData, useStore } from "@/data/store";
 import { useAuth } from "@/data/auth";
+import { useConfirm } from "@/components/Confirm";
 import type { AppData } from "@/data/types";
 
 export const Route = createFileRoute("/definicoes")({
@@ -27,6 +28,7 @@ function SettingsPage() {
   const data = useData();
   const { updatePerson, setSavingsGoal, importData, resetData, activeProfile } = useStore();
   const { email, signOut } = useAuth();
+  const confirm = useConfirm();
   const me = data.people.find((p) => p.id === activeProfile);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -122,9 +124,13 @@ function SettingsPage() {
                 className="text-destructive hover:text-destructive"
                 onClick={async () => {
                   if (
-                    !confirm(
-                      "Repor os dados iniciais para TODO o grupo? Apagam-se viagens, despesas, horário e exames de toda a gente, e a tua poupança.",
-                    )
+                    !(await confirm({
+                      title: "Repor os dados iniciais para todo o grupo?",
+                      description:
+                        "Apagam-se viagens, despesas, horário e exames de toda a gente, e a tua poupança. Não dá para desfazer.",
+                      confirmLabel: "Repor tudo",
+                      destructive: true,
+                    }))
                   )
                     return;
                   await resetData();

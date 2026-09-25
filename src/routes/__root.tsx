@@ -15,6 +15,7 @@ import { ThemeProvider, THEME_INIT_SCRIPT } from "@/lib/theme";
 import { DataProvider } from "@/data/store";
 import { AuthProvider } from "@/data/auth";
 import { AuthGate } from "@/components/AuthScreens";
+import { ConfirmProvider } from "@/components/Confirm";
 import { AppShell } from "@/components/AppShell";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -135,14 +136,16 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AuthProvider>
-          <AuthGate>
-            <DataProvider>
-              <AppShell>
-                {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-                <Outlet />
-              </AppShell>
-            </DataProvider>
-          </AuthGate>
+          <ConfirmProvider>
+            <AuthGate>
+              <DataProvider>
+                <AppShell>
+                  {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+                  <Outlet />
+                </AppShell>
+              </DataProvider>
+            </AuthGate>
+          </ConfirmProvider>
           <Toaster position="bottom-center" />
         </AuthProvider>
       </ThemeProvider>
