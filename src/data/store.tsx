@@ -20,8 +20,20 @@ import type {
   Settlement,
   Trip,
 } from "./types";
+import { toast } from "sonner";
 import { migrate, repository } from "./repository";
-import { defaultBookings } from "./seed";
+import { createSeedData, defaultBookings } from "./seed";
+import { useAuth } from "./auth";
+import {
+  applyRemote,
+  diff,
+  fetchGroupTotal,
+  initialOps,
+  loadCloud,
+  pushOps,
+  subscribeCloud,
+} from "./cloud";
+import { savingsByPerson } from "@/lib/finance";
 
 export const newId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -61,31 +73,113 @@ interface StoreActions {
 interface StoreValue extends StoreActions {
   data: AppData | null;
   ready: boolean;
+  /** Pessoa com sessão iniciada */
   activeProfile: string | null;
+  /** Total poupado pelo grupo (vem do servidor, sem revelar quanto tem cada um) */
+  groupSavingsTotal: number;
 }
 
 const StoreContext = createContext<StoreValue | null>(null);
 
+const MIGRATED_KEY = "erasmus-pisa:migrated";
+
 export function DataProvider({ children }: { children: ReactNode }) {
-  const [data, setData] = useState<AppData | null>(null);
-  const loaded = useRef(false);
-  const [activeProfile, setActive] = useState<string | null>(null);
+  const { userId, personId, pendingName, clearPendingName } = useAuth();
+  const [data, setDataState] = useState<AppData | null>(null);
+  const dataRef = useRef<AppData | null>(null);
+  const [groupTotal, setGroupTotal] = useState<number | null>(null);
+
+  const setData = useCallback((d: AppData) => {
+    dataRef.current = d;
+    setDataState(d);
+  }, []);
+
+  const refreshTotal = useCallback(() => {
+    fetchGroupTotal().then(setGroupTotal, (e: unknown) => console.error(e));
+  }, []);
+
+  /** Carrega tudo da nuvem; na primeira vez envia o que houver neste dispositivo. */
+  const load = useCallback(async () => {
+    if (!userId || !personId) return;
+    let cloud = await loadCloud();
+    const migratedKey = `${MIGRATED_KEY}:${personId}`;
+    let alreadyMigrated = false;
+    try {
+      alreadyMigrated = localStorage.getItem(migratedKey) === "1";
+    } catch {
+      /* sem localStorage */
+    }
+    if (!cloud || !alreadyMigrated) {
+      const local = repository.loadSnapshot();
+      const ops = initialOps(local ?? createSeedData(), personId, !!cloud);
+      if (ops.length) await pushOps(ops, userId);
+      try {
+        localStorage.setItem(migratedKey, "1");
+      } catch {
+        /* sem localStorage */
+      }
+      cloud = await loadCloud();
+    }
+    if (cloud) setData(cloud);
+    refreshTotal();
+  }, [userId, personId, setData, refreshTotal]);
 
   useEffect(() => {
-    repository.load().then((d) => {
-      loaded.current = true;
-      setActive(repository.getActiveProfile());
-      setData(d);
+    load().catch((e: unknown) => {
+      console.error(e);
+      toast.error("Não consegui carregar os dados. Verifica a ligação e recarrega a página.");
     });
-  }, []);
+  }, [load]);
 
+  // Alterações dos outros em tempo real.
   useEffect(() => {
-    if (data && loaded.current) void repository.save(data);
-  }, [data]);
+    if (!userId || !data) return;
+    return subscribeCloud(userId, (table, change) => {
+      if (dataRef.current) setData(applyRemote(dataRef.current, table, change));
+    });
+    // Subscreve uma vez, quando os dados chegam.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, data !== null]);
 
-  const mutate = useCallback((fn: (d: AppData) => AppData) => {
-    setData((prev) => (prev ? fn(prev) : prev));
-  }, []);
+  // Ao voltar à app depois de algum tempo, recarrega (apanha o que possa ter falhado).
+  useEffect(() => {
+    let hiddenAt = 0;
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") hiddenAt = Date.now();
+      else if (hiddenAt && Date.now() - hiddenAt > 30_000) void load().catch(console.error);
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [load]);
+
+  const mutate = useCallback(
+    (fn: (d: AppData) => AppData) => {
+      const prev = dataRef.current;
+      if (!prev || !userId) return;
+      const next = fn(prev);
+      if (next === prev) return;
+      setData(next);
+      // Só a própria poupança pode ser escrita (o servidor recusa as outras).
+      const ops = diff(prev, next).filter((o) => o.table !== "private_items" || o.action === "delete" || o.person_id === personId);
+      pushOps(ops, userId)
+        .then(() => {
+          if (ops.some((o) => o.table === "private_items")) refreshTotal();
+        })
+        .catch((e: unknown) => {
+          console.error(e);
+          toast.error("Não consegui guardar na nuvem. A recarregar os dados…");
+          void load().catch(console.error);
+        });
+    },
+    [userId, personId, setData, refreshTotal, load],
+  );
+
+  // Nome escrito ao escolher o perfil.
+  useEffect(() => {
+    if (!data || !pendingName || !personId) return;
+    mutate((d) => ({ ...d, people: d.people.map((p) => (p.id === personId ? { ...p, name: pendingName } : p)) }));
+    clearPendingName();
+  }, [data, pendingName, personId, mutate, clearPendingName]);
 
   const actions = useMemo<StoreActions>(
     () => ({
@@ -157,23 +251,33 @@ export function DataProvider({ children }: { children: ReactNode }) {
       updateBooking: (id, patch) =>
         mutate((d) => ({ ...d, bookings: d.bookings.map((b) => (b.id === id ? { ...b, ...patch } : b)) })),
       removeBooking: (id) => mutate((d) => ({ ...d, bookings: d.bookings.filter((b) => b.id !== id) })),
-      setActiveProfile: (id) => {
-        repository.setActiveProfile(id);
-        setActive(id);
-      },
-      importData: (imported) => setData(migrate(imported)),
-      resetData: async () => {
-        const seed = await repository.reset();
-        setData(seed);
-      },
+      // O perfil está ligado à conta; para trocar, sai-se da conta.
+      setActiveProfile: () => {},
+      // Só a própria poupança entra (a dos outros é privada e fica como está).
+      importData: (imported) =>
+        mutate(() => {
+          const m = migrate(imported);
+          return {
+            ...m,
+            savings: m.savings.filter((x) => x.personId === personId),
+            recurring: m.recurring.filter((x) => x.personId === personId),
+          };
+        }),
+      resetData: async () => mutate(() => createSeedData()),
     }),
-    [mutate],
+    [mutate, personId],
   );
 
-  const value = useMemo<StoreValue>(
-    () => ({ data, ready: data !== null, activeProfile, ...actions }),
-    [data, actions, activeProfile],
-  );
+  const value = useMemo<StoreValue>(() => {
+    const localTotal = data ? Object.values(savingsByPerson(data)).reduce((a, v) => a + v, 0) : 0;
+    return {
+      data,
+      ready: data !== null,
+      activeProfile: personId,
+      groupSavingsTotal: groupTotal ?? localTotal,
+      ...actions,
+    };
+  }, [data, actions, personId, groupTotal]);
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }

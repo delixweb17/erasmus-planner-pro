@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Download, RotateCcw, Upload } from "lucide-react";
+import { Download, LogOut, RotateCcw, Upload } from "lucide-react";
 import { useRef } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
@@ -8,6 +8,7 @@ import { Field } from "@/components/forms";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useData, useStore } from "@/data/store";
+import { useAuth } from "@/data/auth";
 import type { AppData } from "@/data/types";
 
 export const Route = createFileRoute("/definicoes")({
@@ -24,7 +25,9 @@ export const Route = createFileRoute("/definicoes")({
 
 function SettingsPage() {
   const data = useData();
-  const { updatePerson, setSavingsGoal, importData, resetData } = useStore();
+  const { updatePerson, setSavingsGoal, importData, resetData, activeProfile } = useStore();
+  const { email, signOut } = useAuth();
+  const me = data.people.find((p) => p.id === activeProfile);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const exportJson = () => {
@@ -51,7 +54,7 @@ function SettingsPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Grupo" title="Definições" description="Os dados ficam guardados neste navegador." />
+      <PageHeader eyebrow="Grupo" title="Definições" description="Os dados ficam na nuvem e são partilhados pelo grupo. A poupança de cada um só é visível para o próprio." />
 
       <div className="grid gap-10 lg:grid-cols-2">
         <Section title="Pessoas">
@@ -71,6 +74,19 @@ function SettingsPage() {
         </Section>
 
         <div className="space-y-10">
+          <Section title="A tua conta">
+            <div className="card-soft flex flex-wrap items-center gap-3 p-5">
+              <PersonAvatar person={me} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium">{me?.name}</p>
+                <p className="truncate text-xs text-muted-foreground">{email}</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => void signOut()}>
+                <LogOut /> Sair
+              </Button>
+            </div>
+          </Section>
+
           <Section title="Poupança">
             <div className="card-soft p-5">
               <Field label="Meta por pessoa" hint="Prazo: 1 de setembro de 2027.">
@@ -105,7 +121,12 @@ function SettingsPage() {
                 variant="ghost"
                 className="text-destructive hover:text-destructive"
                 onClick={async () => {
-                  if (!confirm("Repor os dados iniciais? Perdes despesas, poupanças e alterações.")) return;
+                  if (
+                    !confirm(
+                      "Repor os dados iniciais para TODO o grupo? Apagam-se viagens, despesas, horário e exames de toda a gente, e a tua poupança.",
+                    )
+                  )
+                    return;
                   await resetData();
                   toast.success("Dados repostos.");
                 }}

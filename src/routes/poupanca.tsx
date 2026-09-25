@@ -35,7 +35,7 @@ export const Route = createFileRoute("/poupanca")({
 function SavingsPage() {
   const data = useData();
   const { people, savingsGoal, savingsDeadline, trips } = data;
-  const { removeSavings, removeRecurring, activeProfile, setActiveProfile } = useStore();
+  const { removeSavings, removeRecurring, activeProfile, groupSavingsTotal: total } = useStore();
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<"mensal" | "extra">("extra");
   const [editing, setEditing] = useState<RecurringSaving | null>(null);
@@ -48,7 +48,6 @@ function SavingsPage() {
   const me = people.find((p) => p.id === activeProfile);
   const today = todayISO();
   const saved = savingsByPerson(data);
-  const total = Object.values(saved).reduce((s, v) => s + v, 0);
   const target = savingsGoal * people.length;
   const days = daysBetween(today, savingsDeadline);
   const budgetNeeded = totalBudgetPerPerson(trips);
@@ -109,10 +108,10 @@ function SavingsPage() {
 
       <div className="fade-up mb-4 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
         <PersonAvatar person={me} size="sm" />
-        <span>A ver como <span className="font-medium text-foreground">{me.name}</span></span>
-        <button type="button" className="cursor-pointer text-primary hover:underline" onClick={() => setActiveProfile(null)}>
-          Não és tu? Trocar
-        </button>
+        <span>
+          Só tu vês esta página, <span className="font-medium text-foreground">{me.name}</span>. Os outros veem apenas o
+          total do grupo.
+        </span>
       </div>
 
       <div className="fade-up grid gap-4 sm:grid-cols-3">

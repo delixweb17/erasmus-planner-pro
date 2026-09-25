@@ -3,6 +3,7 @@ import {
   CalendarDays,
   LayoutDashboard,
   Map as MapIcon,
+  LogOut,
   Moon,
   PiggyBank,
   Plane,
@@ -11,6 +12,7 @@ import {
   Sun,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { useAuth } from "@/data/auth";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +38,26 @@ function ThemeToggle({ className }: { className?: string }) {
       )}
     >
       {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+    </button>
+  );
+}
+
+function SignOutButton({ className }: { className?: string }) {
+  const { signOut, email } = useAuth();
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (confirm(`Sair da conta${email ? ` ${email}` : ""}?`)) void signOut();
+      }}
+      aria-label="Sair da conta"
+      title="Sair da conta"
+      className={cn(
+        "inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground",
+        className,
+      )}
+    >
+      <LogOut className="size-4" />
     </button>
   );
 }
@@ -73,7 +95,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           >
             <Settings className="size-4" /> Definições
           </Link>
-          <ThemeToggle />
+          <div className="flex items-center">
+            <ThemeToggle />
+            <SignOutButton />
+          </div>
         </div>
       </aside>
 
@@ -92,6 +117,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Settings className="size-4" />
           </Link>
           <ThemeToggle />
+          <SignOutButton />
         </div>
       </header>
 

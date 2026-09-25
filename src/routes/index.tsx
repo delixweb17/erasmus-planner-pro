@@ -32,7 +32,7 @@ function Dashboard() {
   const data = useData();
   const { people, trips, expenses, settlements, savingsGoal, savingsDeadline } = data;
   const [expenseOpen, setExpenseOpen] = useState(false);
-  const { activeProfile } = useStore();
+  const { activeProfile, groupSavingsTotal: savingsTotal } = useStore();
   const me = people.find((p) => p.id === activeProfile);
   const today = todayISO();
 
@@ -49,7 +49,6 @@ function Dashboard() {
   const net = netBalances(people, expenses, settlements);
   const transfers = simplifyDebts(net);
   const savings = savingsByPerson(data);
-  const savingsTotal = Object.values(savings).reduce((s, v) => s + v, 0);
   const savingsTarget = savingsGoal * people.length;
   const daysToDeadline = daysBetween(today, savingsDeadline);
   const byId = Object.fromEntries(people.map((p) => [p.id, p]));

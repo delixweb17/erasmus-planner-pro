@@ -11,6 +11,8 @@ export interface DataRepository {
   save(data: AppData): Promise<void>;
   reset(): Promise<AppData>;
   /** Perfil ativo neste dispositivo (fica fora dos dados partilhados) */
+  /** Dados guardados neste dispositivo, sem criar nada (null se não houver). */
+  loadSnapshot(): AppData | null;
   getActiveProfile(): string | null;
   setActiveProfile(id: string | null): void;
 }
@@ -99,6 +101,18 @@ export class LocalStorageRepository implements DataRepository {
     const seed = createSeedData();
     await this.save(seed);
     return seed;
+  }
+
+  loadSnapshot(): AppData | null {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as AppData;
+      return parsed.version === 1 ? migrate(parsed) : null;
+    } catch {
+      return null;
+    }
   }
 
   getActiveProfile(): string | null {
