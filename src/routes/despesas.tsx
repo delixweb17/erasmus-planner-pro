@@ -27,7 +27,7 @@ export const Route = createFileRoute("/despesas")({
 
 function ExpensesPage() {
   const { people, trips, expenses, settlements } = useData();
-  const { removeExpense, addSettlement, removeSettlement, closeAccounts } = useStore();
+  const { removeExpense, addSettlement, removeSettlement, closeAccounts, removeClosed } = useStore();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Expense | undefined>();
 
@@ -254,6 +254,26 @@ function ExpensesPage() {
                             <span className="tabular">{fmtEurCents(x.amount)}</span>
                           </li>
                         ))}
+                        <li className="flex justify-end px-3 py-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => {
+                              const trips = exps.some((e) => e.tripId);
+                              if (
+                                !confirm(
+                                  `Apagar de vez as contas fechadas a ${fmtShort(date)}?\n\n${exps.length} ${exps.length === 1 ? "despesa" : "despesas"} e ${sets.length} ${sets.length === 1 ? "acerto" : "acertos"} desaparecem para toda a gente. Os saldos não mudam.${trips ? " As despesas deixam de contar para o custo das viagens." : ""}`,
+                                )
+                              )
+                                return;
+                              removeClosed(date);
+                              toast.success("Contas fechadas apagadas.");
+                            }}
+                          >
+                            <Trash2 /> Apagar estas contas
+                          </Button>
+                        </li>
                       </ul>
                     </details>
                   );

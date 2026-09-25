@@ -55,6 +55,8 @@ interface StoreActions {
   removeSettlement: (id: string) => void;
   /** Passa as contas abertas (já quites) para o histórico */
   closeAccounts: () => void;
+  /** Apaga de vez as despesas e acertos fechados numa data (não mexe nos saldos) */
+  removeClosed: (closedAt: string) => void;
   setSavingsGoal: (goal: number) => void;
   addRecurring: (r: Omit<RecurringSaving, "id">) => void;
   updateRecurring: (id: string, patch: Partial<RecurringSaving>) => void;
@@ -232,6 +234,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
           return canCloseAccounts(next) ? closeAccounts(next, s.date) : next;
         }),
       closeAccounts: () => mutate((d) => (canCloseAccounts(d) ? closeAccounts(d, todayISO()) : d)),
+      removeClosed: (closedAt) =>
+        mutate((d) => ({
+          ...d,
+          expenses: d.expenses.filter((e) => e.closedAt !== closedAt),
+          settlements: d.settlements.filter((s) => s.closedAt !== closedAt),
+        })),
       removeSettlement: (id) =>
         mutate((d) => ({ ...d, settlements: d.settlements.filter((s) => s.id !== id) })),
       setSavingsGoal: (goal) => mutate((d) => ({ ...d, savingsGoal: goal })),
