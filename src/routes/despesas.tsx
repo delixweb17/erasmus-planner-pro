@@ -7,6 +7,7 @@ import { EmptyState, Loaded, PersonAvatar, Section, Stat } from "@/components/bi
 import { CATEGORY_LABEL, ExpenseFormDialog } from "@/components/forms";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/Confirm";
+import { useRemoveExpense } from "@/components/expenseActions";
 import { useData, useStore } from "@/data/store";
 import type { Expense, Person, Trip } from "@/data/types";
 import { canCloseAccounts, isSettled, netBalances, simplifyDebts, splitCents } from "@/lib/finance";
@@ -28,8 +29,7 @@ export const Route = createFileRoute("/despesas")({
 
 function ExpensesPage() {
   const { people, trips, expenses, settlements } = useData();
-  const { removeExpense, addSettlement, removeSettlement, closeAccounts, removeClosedExpense, clearClosed } =
-    useStore();
+  const { addSettlement, removeSettlement, closeAccounts, clearClosed } = useStore();
   const confirm = useConfirm();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Expense | undefined>();
@@ -67,22 +67,7 @@ function ExpensesPage() {
     );
   };
 
-  const remove = async (e: Expense) => {
-    const ok = await confirm({
-      title: `Apagar "${e.description}"?`,
-      ...(openSettlements.length > 0
-        ? {
-            description:
-              "Já há acertos registados. Se esta despesa já foi paga, não a apagues: quando toda a gente ficar quite, ela passa sozinha para “Contas fechadas”. Apagá-la agora muda as contas de toda a gente.",
-          }
-        : {}),
-      confirmLabel: "Apagar",
-      destructive: true,
-    });
-    if (!ok) return;
-    removeExpense(e.id);
-    toast.success("Despesa apagada.");
-  };
+  const remove = useRemoveExpense();
 
   return (
     <>
@@ -281,19 +266,7 @@ function ExpensesPage() {
                         e={e}
                         byId={byId}
                         tripById={tripById}
-                        onDelete={async () => {
-                          if (
-                            !(await confirm({
-                              title: `Apagar de vez "${e.description}"?`,
-                              description: "Já estava acertada, por isso os saldos não mudam.",
-                              confirmLabel: "Apagar",
-                              destructive: true,
-                            }))
-                          )
-                            return;
-                          removeClosedExpense(e.id);
-                          toast.success("Despesa apagada.");
-                        }}
+                        onDelete={() => void remove(e)}
                       />
                     </details>
                   </li>

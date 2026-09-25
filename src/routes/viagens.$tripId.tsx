@@ -16,6 +16,7 @@ import {
 import { CATEGORY_LABEL, ExpenseFormDialog, TripFormDialog } from "@/components/forms";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/Confirm";
+import { useRemoveExpense } from "@/components/expenseActions";
 import { BookingsSection } from "@/components/Bookings";
 import { useChat } from "@/data/chat";
 import { useData, useStore } from "@/data/store";
@@ -48,7 +49,8 @@ export const Route = createFileRoute("/viagens/$tripId")({
 function TripDetail() {
   const { tripId } = Route.useParams();
   const { trips, expenses, people, timetable, exams } = useData();
-  const { removeTrip, removeExpense } = useStore();
+  const { removeTrip } = useStore();
+  const removeExpense = useRemoveExpense();
   const navigate = useNavigate();
   const confirm = useConfirm();
   const [editOpen, setEditOpen] = useState(false);
@@ -221,7 +223,7 @@ function TripDetail() {
                     type="button"
                     aria-label="Apagar despesa"
                     className="cursor-pointer rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-destructive"
-                    onClick={() => { removeExpense(e.id); toast.success("Despesa apagada."); }}
+                    onClick={() => void removeExpense(e)}
                   >
                     <Trash2 className="size-3.5" />
                   </button>

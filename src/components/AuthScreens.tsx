@@ -37,22 +37,47 @@ export function AuthGate({ children }: { children: ReactNode }) {
     );
   if (status === "signedOut") return <LoginScreen />;
   if (status === "needsProfile") return <ClaimScreen />;
+  if (status === "recovery") return <NewPasswordScreen />;
   return <>{children}</>;
 }
 
 function LoginScreen() {
-  const { signIn, signUp } = useAuth();
-  const [mode, setMode] = useState<"entrar" | "criar">("entrar");
+  const { signIn, signUp, requestPasswordReset } = useAuth();
+  const [mode, setMode] = useState<"entrar" | "criar" | "recuperar">("entrar");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
+  const switchMode = (m: typeof mode) => {
+    setMode(m);
+    setError(null);
+    setInfo(null);
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setInfo(null);
+    if (mode === "recuperar") {
+      if (!email.trim()) {
+        setError("Escreve o teu email.");
+        return;
+      }
+      setBusy(true);
+      try {
+        await requestPasswordReset(email.trim());
+        setInfo(
+          "Se existir uma conta com este email, vais receber um link para escolher uma password nova. Vê também o spam.",
+        );
+      } catch (err) {
+        setError((err as Error).message);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     if (!email.trim() || !password) {
       setError("Escreve o email e a password.");
       return;
@@ -62,7 +87,8 @@ function LoginScreen() {
       if (mode === "entrar") await signIn(email.trim(), password);
       else {
         const { needsConfirmation } = await signUp(email.trim(), password);
-        if (needsConfirmation) setInfo("Conta criada. Confirma o email na tua caixa de correio e depois entra aqui.");
+        if (needsConfirmation)
+          setInfo("Conta criada. Confirma o email na tua caixa de correio e depois entra aqui.");
       }
     } catch (err) {
       setError((err as Error).message);
@@ -73,25 +99,30 @@ function LoginScreen() {
 
   return (
     <Screen>
-      <div className="mb-5 grid grid-cols-2 gap-1 rounded-lg border p-1">
-        {(["entrar", "criar"] as const).map((m) => (
-          <button
-            key={m}
-            type="button"
-            onClick={() => {
-              setMode(m);
-              setError(null);
-              setInfo(null);
-            }}
-            className={cn(
-              "cursor-pointer rounded-md py-1.5 text-sm font-medium",
-              mode === m ? "bg-primary text-primary-foreground" : "text-muted-foreground",
-            )}
-          >
-            {m === "entrar" ? "Entrar" : "Criar conta"}
-          </button>
-        ))}
-      </div>
+      {mode === "recuperar" ? (
+        <div className="mb-5">
+          <p className="font-display text-xl font-semibold">Esqueceste-te da password?</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Escreve o teu email e mandamos-te um link para escolheres uma nova.
+          </p>
+        </div>
+      ) : (
+        <div className="mb-5 grid grid-cols-2 gap-1 rounded-lg border p-1">
+          {(["entrar", "criar"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => switchMode(m)}
+              className={cn(
+                "cursor-pointer rounded-md py-1.5 text-sm font-medium",
+                mode === m ? "bg-primary text-primary-foreground" : "text-muted-foreground",
+              )}
+            >
+              {m === "entrar" ? "Entrar" : "Criar conta"}
+            </button>
+          ))}
+        </div>
+      )}
       <form onSubmit={submit} className="space-y-4">
         <Field label="Email">
           <Input
@@ -103,23 +134,48 @@ function LoginScreen() {
             autoFocus
           />
         </Field>
-        <Field label="Password" {...(mode === "criar" ? { hint: "Pelo menos 6 caracteres." } : {})}>
-          <Input
-            type="password"
-            autoComplete={mode === "entrar" ? "current-password" : "new-password"}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </Field>
-        {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+        {mode !== "recuperar" && (
+          <Field
+            label="Password"
+            {...(mode === "criar" ? { hint: "Pelo menos 6 caracteres." } : {})}
+          >
+            <Input
+              type="password"
+              autoComplete={mode === "entrar" ? "current-password" : "new-password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </Field>
+        )}
+        {error && (
+          <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
+        )}
         {info && <p className="rounded-lg bg-success/10 px-3 py-2 text-sm text-success">{info}</p>}
         <Button type="submit" className="w-full" disabled={busy}>
           {busy && <Loader2 className="animate-spin" />}
-          {mode === "entrar" ? "Entrar" : "Criar conta"}
+          {mode === "entrar" ? "Entrar" : mode === "criar" ? "Criar conta" : "Enviar link"}
         </Button>
       </form>
       <p className="mt-4 text-center text-xs text-muted-foreground">
-        {mode === "entrar" ? "Primeira vez? Escolhe “Criar conta”." : "A tua poupança só é visível para ti."}
+        {mode === "recuperar" ? (
+          <button
+            type="button"
+            className="cursor-pointer text-primary hover:underline"
+            onClick={() => switchMode("entrar")}
+          >
+            Voltar a entrar
+          </button>
+        ) : mode === "entrar" ? (
+          <button
+            type="button"
+            className="cursor-pointer text-primary hover:underline"
+            onClick={() => switchMode("recuperar")}
+          >
+            Esqueci-me da password
+          </button>
+        ) : (
+          "A tua poupança só é visível para ti."
+        )}
       </p>
     </Screen>
   );
@@ -187,16 +243,26 @@ function ClaimScreen() {
                   </span>
                   <span className="min-w-0">
                     <span className="block font-medium">{p.label}</span>
-                    {taken && <span className="block text-[11px] text-muted-foreground">Já escolhido</span>}
+                    {taken && (
+                      <span className="block text-[11px] text-muted-foreground">Já escolhido</span>
+                    )}
                   </span>
                 </button>
               );
             })}
           </div>
           <Field label="Como te chamas?" hint="Opcional — aparece em vez de “Pessoa N”.">
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="O teu nome" />
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="O teu nome"
+            />
           </Field>
-          {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+          {error && (
+            <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {error}
+            </p>
+          )}
           <Button type="submit" className="w-full" disabled={busy || !choice}>
             {busy && <Loader2 className="animate-spin" />}
             Continuar
@@ -205,10 +271,76 @@ function ClaimScreen() {
       )}
       <p className="mt-4 text-center text-xs text-muted-foreground">
         {email} ·{" "}
-        <button type="button" className="cursor-pointer text-primary hover:underline" onClick={() => void signOut()}>
+        <button
+          type="button"
+          className="cursor-pointer text-primary hover:underline"
+          onClick={() => void signOut()}
+        >
           Sair
         </button>
       </p>
+    </Screen>
+  );
+}
+
+function NewPasswordScreen() {
+  const { updatePassword, email } = useAuth();
+  const [password, setPassword] = useState("");
+  const [repeat, setRepeat] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password.length < 6) {
+      setError("A password tem de ter pelo menos 6 caracteres.");
+      return;
+    }
+    if (password !== repeat) {
+      setError("As duas passwords não são iguais.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await updatePassword(password);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Screen>
+      <p className="font-display text-xl font-semibold">Escolhe uma password nova</p>
+      {email && <p className="mt-1 text-sm text-muted-foreground">Para a conta {email}.</p>}
+      <form onSubmit={submit} className="mt-5 space-y-4">
+        <Field label="Password nova" hint="Pelo menos 6 caracteres.">
+          <Input
+            type="password"
+            autoComplete="new-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoFocus
+          />
+        </Field>
+        <Field label="Repete a password">
+          <Input
+            type="password"
+            autoComplete="new-password"
+            value={repeat}
+            onChange={(e) => setRepeat(e.target.value)}
+          />
+        </Field>
+        {error && (
+          <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
+        )}
+        <Button type="submit" className="w-full" disabled={busy}>
+          {busy && <Loader2 className="animate-spin" />}
+          Guardar e entrar
+        </Button>
+      </form>
     </Screen>
   );
 }

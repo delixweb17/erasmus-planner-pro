@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Download, LogOut, RotateCcw, Upload } from "lucide-react";
+import { Download, LogOut, Upload } from "lucide-react";
 import { useRef } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
@@ -26,7 +26,7 @@ export const Route = createFileRoute("/definicoes")({
 
 function SettingsPage() {
   const data = useData();
-  const { updatePerson, setSavingsGoal, importData, resetData, activeProfile } = useStore();
+  const { updatePerson, setSavingsGoal, importData, activeProfile } = useStore();
   const { email, signOut } = useAuth();
   const confirm = useConfirm();
   const me = data.people.find((p) => p.id === activeProfile);
@@ -43,15 +43,27 @@ function SettingsPage() {
   };
 
   const onImport = async (file?: File) => {
+    if (fileRef.current) fileRef.current.value = "";
     if (!file) return;
+    let parsed: AppData;
     try {
-      const parsed = JSON.parse(await file.text()) as AppData;
+      parsed = JSON.parse(await file.text()) as AppData;
       if (parsed.version !== 1 || !Array.isArray(parsed.trips)) throw new Error("formato");
-      importData(parsed);
-      toast.success("Dados importados.");
     } catch {
       toast.error("Ficheiro inválido.");
+      return;
     }
+    if (
+      !(await confirm({
+        title: "Importar esta cópia?",
+        description: `Substitui as viagens, despesas, horário e exames de todo o grupo pelos do ficheiro (${parsed.trips.length} viagens, ${parsed.expenses?.length ?? 0} despesas), e a tua poupança pela do ficheiro. A poupança dos outros não muda.`,
+        confirmLabel: "Importar",
+        destructive: true,
+      }))
+    )
+      return;
+    importData(parsed);
+    toast.success("Dados importados.");
   };
 
   return (
@@ -104,13 +116,17 @@ function SettingsPage() {
             </div>
           </Section>
 
-          <Section title="Dados">
-            <div className="card-soft flex flex-wrap gap-2 p-5">
+          <Section title="Cópia de segurança">
+            <div className="card-soft flex flex-wrap items-center gap-2 p-5">
+              <p className="basis-full pb-1 text-xs text-muted-foreground">
+                Guarda de vez em quando uma cópia: se algo for apagado por engano, dá para a importar. Inclui tudo o que é do
+                grupo e só a tua poupança.
+              </p>
               <Button variant="outline" onClick={exportJson}>
-                <Download /> Exportar
+                <Download /> Exportar cópia
               </Button>
               <Button variant="outline" onClick={() => fileRef.current?.click()}>
-                <Upload /> Importar
+                <Upload /> Importar cópia
               </Button>
               <input
                 ref={fileRef}
@@ -119,26 +135,6 @@ function SettingsPage() {
                 className="hidden"
                 onChange={(e) => onImport(e.target.files?.[0])}
               />
-              <Button
-                variant="ghost"
-                className="text-destructive hover:text-destructive"
-                onClick={async () => {
-                  if (
-                    !(await confirm({
-                      title: "Repor os dados iniciais para todo o grupo?",
-                      description:
-                        "Apagam-se viagens, despesas, horário e exames de toda a gente, e a tua poupança. Não dá para desfazer.",
-                      confirmLabel: "Repor tudo",
-                      destructive: true,
-                    }))
-                  )
-                    return;
-                  await resetData();
-                  toast.success("Dados repostos.");
-                }}
-              >
-                <RotateCcw /> Repor seed
-              </Button>
             </div>
           </Section>
         </div>

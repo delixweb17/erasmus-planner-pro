@@ -74,7 +74,6 @@ interface StoreActions {
   removeBooking: (id: string) => void;
   setActiveProfile: (id: string | null) => void;
   importData: (data: AppData) => void;
-  resetData: () => Promise<void>;
 }
 
 interface StoreValue extends StoreActions {
@@ -294,7 +293,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
             recurring: m.recurring.filter((x) => x.personId === personId),
           };
         }),
-      resetData: async () => mutate(() => createSeedData()),
     }),
     [mutate, personId],
   );

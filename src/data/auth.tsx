@@ -1,9 +1,9 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import type { PersonId } from "./types";
 
-type Status = "loading" | "signedOut" | "needsProfile" | "ready";
+type Status = "loading" | "signedOut" | "needsProfile" | "ready" | "recovery";
 
 interface AuthValue {
   status: Status;
@@ -18,6 +18,10 @@ interface AuthValue {
   signUp: (email: string, password: string) => Promise<{ needsConfirmation: boolean }>;
   signOut: () => Promise<void>;
   claim: (personId: PersonId, name?: string) => Promise<void>;
+  /** Envia o email com o link para escolher uma password nova */
+  requestPasswordReset: (email: string) => Promise<void>;
+  /** Grava a password nova (depois de abrir o link do email) */
+  updatePassword: (password: string) => Promise<void>;
   /** Nome escrito ao escolher o perfil, para aplicar quando os dados carregarem */
   pendingName: string | null;
   clearPendingName: () => void;
@@ -32,6 +36,8 @@ function explain(error: { message?: string } | null | undefined): Error {
   if (/email not confirmed/i.test(msg)) return new Error("Ainda não confirmaste o email — vê a tua caixa de correio.");
   if (/already registered|already been registered/i.test(msg)) return new Error("Já existe uma conta com este email. Entra em vez de criar.");
   if (/password should be at least/i.test(msg)) return new Error("A password tem de ter pelo menos 6 caracteres.");
+  if (/should be different from the old password/i.test(msg)) return new Error("A password nova tem de ser diferente da antiga.");
+  if (/session.*missing|expired/i.test(msg)) return new Error("O link expirou. Pede outro em “Esqueci-me da password”.");
   if (/rate limit/i.test(msg)) return new Error("Demasiadas tentativas. Espera um bocadinho e tenta outra vez.");
   if (/failed to fetch|network/i.test(msg)) return new Error("Sem ligação ao servidor. Verifica a internet.");
   return new Error(msg);
@@ -43,6 +49,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [personId, setPersonId] = useState<PersonId | null>(null);
   const [takenPeople, setTaken] = useState<PersonId[]>([]);
   const [pendingName, setPendingName] = useState<string | null>(null);
+  // Chegou-se pelo link de "esqueci-me da password": primeiro escolhe-se a password nova.
+  const recovering = useRef(typeof window !== "undefined" && /type=recovery/.test(window.location.hash));
 
   const loadMembership = useCallback(async (s: Session | null) => {
     setSession(s);
@@ -61,15 +69,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const mine = rows.find((r) => r.user_id === s.user.id);
     setTaken(rows.filter((r) => r.user_id !== s.user.id).map((r) => r.person_id));
     setPersonId(mine?.person_id ?? null);
-    setStatus(mine ? "ready" : "needsProfile");
+    setStatus(recovering.current ? "recovery" : mine ? "ready" : "needsProfile");
   }, []);
 
   useEffect(() => {
     const auth = supabase().auth;
     void auth.getSession().then(({ data }) => loadMembership(data.session));
     const { data: sub } = auth.onAuthStateChange((event, s) => {
-      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED")
-        void loadMembership(s);
+      if (event === "PASSWORD_RECOVERY") {
+        recovering.current = true;
+        setSession(s);
+        setStatus("recovery");
+      } else if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED") void loadMembership(s);
       else setSession(s);
     });
     return () => sub.subscription.unsubscribe();
@@ -100,6 +111,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     pendingName,
     clearPendingName: () => setPendingName(null),
+    requestPasswordReset: async (email) => {
+      const { error } = await supabase().auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+      if (error) throw explain(error);
+    },
+    updatePassword: async (password) => {
+      const { error } = await supabase().auth.updateUser({ password });
+      if (error) throw explain(error);
+      recovering.current = false;
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+      const { data } = await supabase().auth.getSession();
+      await loadMembership(data.session);
+    },
     claim: async (p, name) => {
       const { error } = await supabase().rpc("claim_person", { p });
       if (error) {
