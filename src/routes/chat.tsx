@@ -113,7 +113,7 @@ function ChatPage() {
   const byMessage = useMemo(() => Object.fromEntries(chat.messages.map((m) => [m.id, m])), [chat.messages]);
 
   return (
-    <div className="fade-up flex h-[calc(100dvh-12.5rem)] flex-col lg:h-[calc(100dvh-5rem)]">
+    <div className="fade-up flex h-[calc(100dvh-12.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] flex-col lg:h-[calc(100dvh-5rem)]">
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="eyebrow">Grupo</p>

@@ -1,0 +1,17 @@
+{
+  "name": "Erasmus em Pisa — Semestre 27/28",
+  "short_name": "Erasmus Pisa",
+  "description": "Viagens, despesas partilhadas, poupança e chat do grupo para o Erasmus em Pisa.",
+  "lang": "pt-PT",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#140e0a",
+  "theme_color": "#be5737",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

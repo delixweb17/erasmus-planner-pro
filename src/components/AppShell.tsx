@@ -128,7 +128,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       {/* Cabeçalho (mobile) */}
-      <header className="sticky top-0 z-30 flex items-center justify-between border-b bg-background/85 px-4 py-3 backdrop-blur lg:hidden">
+      <header className="sticky top-0 z-30 flex items-center justify-between border-b bg-background/85 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur lg:hidden">
         <Link to="/">
           <p className="eyebrow">Erasmus · Pisa</p>
           <p className="font-display text-lg font-semibold leading-tight">Semestre 27/28</p>
@@ -146,14 +146,14 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <main className="min-w-0 pb-24 lg:pb-0">
+      <main className="min-w-0 pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-0">
         <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
           {children}
         </div>
       </main>
 
       {/* Navegação inferior (mobile) */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t bg-background/90 backdrop-blur lg:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
         {NAV_MOBILE.map(({ to, label, icon: Icon, ...rest }) => (
           <Link
             key={to}

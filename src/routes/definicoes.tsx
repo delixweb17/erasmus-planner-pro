@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { useData, useStore } from "@/data/store";
 import { useAuth } from "@/data/auth";
 import { useConfirm } from "@/components/Confirm";
+import { InstallSection } from "@/components/InstallApp";
 import type { AppData } from "@/data/types";
 
 export const Route = createFileRoute("/definicoes")({
@@ -88,6 +89,10 @@ function SettingsPage() {
         </Section>
 
         <div className="space-y-10">
+          <Section title="Instalar a app">
+            <InstallSection />
+          </Section>
+
           <Section title="A tua conta">
             <div className="card-soft flex flex-wrap items-center gap-3 p-5">
               <PersonAvatar person={me} />
